@@ -15,11 +15,10 @@ if errorlevel 1 (
     goto :eof
 )
 
-rem --- Define Path to JDK 8 ---
 rem Option 1: Rely on JAVA_HOME (Recommended for flexibility)
-set "JDK8_HOME=%JAVA_HOME%"
+rem set "JDK8_HOME=%JAVA_HOME%"
 rem Option 2: Hardcode path (Uncomment below and edit if needed, comment out Option 1)
-rem set "JDK8_HOME=C:\Program Files\Eclipse Adoptium\jdk-8.0.442.6-hotspot"
+set "JDK8_HOME=C:\Program Files\Eclipse Adoptium\jdk-8.0.442.6-hotspot"
 
 rem --- Check if JDK 8 Path is Found ---
 if not defined JDK8_HOME (
