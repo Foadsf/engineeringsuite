@@ -1,5 +1,6 @@
 package gui;
 
+import java.io.IOException;
 import java.awt.Image;
 import java.awt.Toolkit;
 import java.io.BufferedReader;
@@ -24,7 +25,94 @@ import String2ME.InitVal;
 /**
  * @author Pablo Salinas
  */
-class SaveLoad {
+public class SaveLoad {
+
+
+	public boolean loadInitialValuesFromRis(String filePath) {
+		boolean success = true;
+		Config.InitValue.clear(); // Clear previous values
+
+		try (FileReader r = new FileReader(filePath);
+			BufferedReader b = new BufferedReader(r)) {
+
+			String s;
+			boolean foundDataSection = false;
+			boolean foundValueSection = false;
+
+			// Find the end of the equation data
+			while ((s = b.readLine()) != null) {
+				if (s.trim().equals("@$@%@EndOfEquationData@$@%@")) {
+					foundDataSection = true;
+					break;
+				}
+			}
+
+			if (!foundDataSection) {
+				System.err.println("WARNING: EndOfEquationData marker not found in " + filePath);
+				// Proceed assuming the rest might be initial values, or handle as error
+			}
+
+			// Now read initial values until the next marker
+			while ((s = b.readLine()) != null) {
+				s = s.trim();
+				if (s.equals("@$@%@EndOfInitialVariableValueData@$@%@")) {
+					foundValueSection = true;
+					break; // Found the end marker
+				}
+				if (s.isEmpty() || s.startsWith("/*") || s.startsWith("/**")) {
+					continue; // Skip empty lines/comments
+				}
+
+				int k = s.indexOf('=');
+				if (k <= 0 || k == s.length() - 1) {
+					System.err.println("WARNING: Skipping invalid initial value line (bad format): " + s);
+					continue;
+				}
+
+				try {
+					String varName = s.substring(0, k).trim();
+					String varValueStr = s.substring(k + 1).trim();
+					if (varName.isEmpty() || varValueStr.isEmpty()) {
+						System.err.println("WARNING: Skipping invalid initial value line (empty name or value): " + s);
+						continue;
+					}
+					// Handle potential inline comments AFTER the value
+					int commentStart = varValueStr.indexOf("/*");
+					if (commentStart != -1) {
+						varValueStr = varValueStr.substring(0, commentStart).trim();
+					}
+					commentStart = varValueStr.indexOf("//"); // Handle single line comment too
+					if (commentStart != -1) {
+						varValueStr = varValueStr.substring(0, commentStart).trim();
+					}
+
+
+					if (varValueStr.isEmpty()) { // Check again after stripping comment
+						System.err.println("WARNING: Skipping initial value line (value became empty after comment removal): " + s);
+						continue;
+					}
+
+					varValueStr = varValueStr.replace(',', '.');
+					Config.InitValue.add(new InitVal(Double.parseDouble(varValueStr), varName));
+				} catch (NumberFormatException e) {
+					System.err.println("WARNING: Could not parse number from initial value line: " + s + " - Error: " + e.getMessage());
+					success = false; // Mark as potential issue, but continue loading others
+				} catch (Exception e) {
+					System.err.println("WARNING: Error processing initial value line: " + s + " - Error: " + e.getMessage());
+					success = false;
+				}
+			} // end while reading values
+
+			if (!foundValueSection) {
+				System.err.println("WARNING: EndOfInitialVariableValueData marker not found in " + filePath);
+			}
+
+		} catch (IOException e) {
+			System.err.println("ERROR: Failed to open or read file '" + filePath + "': " + e.getMessage());
+			return false; // Indicate failure
+		}
+		return success;
+	}
 
 	/**
 	 * The icon for the windows

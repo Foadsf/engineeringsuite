@@ -14,6 +14,6 @@ MaxJumpStep: 0.0
 GradientPrecision: 4.641588833612782E-6
 Antiminimum: 0
 SingleVariableMethod: 4
-MultiVariableMethod: 4
+MultiVariableMethod: 2
 RemeberLastCalcValues: false
 TrustRegionRadius: -1.0

@@ -1,12 +1,13 @@
 package tarjan;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collections; 
 import java.util.Iterator;
 import java.util.LinkedList;
-
-import evaluation.DiffAndEvaluator;
-
+import java.util.List;
+import java.util.ListIterator;
+import java.util.ArrayList;
+import gui.Config;
+import solver.LaunchOperations;
 import String2ME.CheckString;
 import String2ME.DerivEquation;
 import String2ME.EqStorer;
@@ -34,12 +35,16 @@ public class PrepareMatrix {
 	private LinkedList<Node> FuncNodes = new LinkedList<Node>();
 
 	public PrepareMatrix() {
-		// Create the nodes
-		for (int i = 1; i < CheckString.Var.getSize() + 1; i++) {
-			VarNodes.add(new Node(i));
-			FuncNodes.add(new Node(-i));
-		}
-	}
+        // Create the nodes
+        VarNodes.clear(); // Ensure lists are clear if instance is reused
+        FuncNodes.clear();
+        for (int i = 0; i < CheckString.Var.getSize(); i++) { // Use actual size
+            VarNodes.add(new Node(i + 1)); // Indices 1 to N
+        }
+         for (int i = 0; i < CheckString.Functions.size(); i++) { // Use actual size
+             FuncNodes.add(new Node(-(i + 1))); // Indices -1 to -M
+         }
+    }
 
 	/**
 	 * At first i save the initial positions of the variables in the list, and
@@ -49,57 +54,73 @@ public class PrepareMatrix {
 	public void PreNewton() {
 
 		createAdjacencyList();
-		// now i will call Tarjan with the AdjacencyList
-		// and with the variable with the lowest appearance count
-		Collections.sort(this._Nodes);
-		int k = Integer.MAX_VALUE;
-		Tarjan T;
-		ListMatrix Relations;
-		LinkedList<PotentialRelationMatrix> PRM = new LinkedList<PotentialRelationMatrix>();
-		while (this._Nodes.size() > 0) {
+         Collections.sort(this._Nodes); // Nodes sorted by variable count
+         Tarjan T;
+         ListMatrix Relations;
+         LinkedList<PotentialRelationMatrix> PRM = new LinkedList<>();
 
-			int i = 0;
-			for (NodoStorer N : this._Nodes) {// Now try with the variables with
-												// lowest appearance
-				if (i == 0) {
-					k = N.getCount();
-					i++;
-				}
+         // --- Tarjan loop to find best SCC ordering (Keep this logic) ---
+         // Determine the number of lowest count variables to check
+          int lowestCount = (this._Nodes.isEmpty()) ? 0 : this._Nodes.getFirst().getCount();
+          int nodesToCheck = 0;
+          for (NodoStorer ns : this._Nodes) {
+              if (ns.getCount() == lowestCount) {
+                  nodesToCheck++;
+              } else {
+                  break;
+              }
+          }
+          nodesToCheck = Math.min(nodesToCheck, 5); // Limit checks for performance
 
-				if (N.getCount() <= k) {
-					T = new Tarjan();
-					this._relations.RestartNodes();
-					restartNodes();
-					// Call Tarjan
 
-					SCC = T.tarjan(/* this._Nodes.get(k-1).getNode() */N
-							.getNode(), this._relations);
-					Relations = RelationMatrix(SCC);
-					// System.out.println(Relations);
-					// if(Relations.checkDiagonal())//Store the value
-					PRM.add(new PotentialRelationMatrix(Relations, SCC));
-				}
-				// k--;
-				// k = N.getCount();
-				// i++;
-			}
+         // --- Store best result ---
+         PotentialRelationMatrix bestPRM = null;
 
-			Collections.sort(PRM);
-			Relations = RelationMatrix(PRM.getFirst().SCC);
+          System.out.println("INFO: Checking Tarjan starting from " + nodesToCheck + " variable(s) with lowest count (" + lowestCount + ")");
+          for (int k = 0; k < nodesToCheck; k++) {
+               NodoStorer startNodeStorer = this._Nodes.get(k);
+                T = new Tarjan();
+                this._relations.RestartNodes(); // Restart graph nodes
+                // this.restartNodes(); // No longer needed if _Nodes only used for initial sort
 
-			/*
-			 * for(PotentialRelationMatrix AAN:PRM){
-			 * System.out.println("Numero: "+AAN.ValuesDownDiagonal);
-			 * for(ArrayList<Node> AN:AAN.SCC){ for(Node N:AN){
-			 * System.out.print(" "+N.name); } System.out.println(); } }
-			 */
-			PRM.clear();
-			updateTerms(SCC);
-			RelationMatrix2Newton(Relations, SCC);
+                System.out.println("  Running Tarjan starting with node: " + startNodeStorer.getNode().getName());
+                SCC = T.tarjan(startNodeStorer.getNode(), this._relations);
 
-		}
+                if (SCC == null || SCC.isEmpty()) {
+                     System.err.println("Warning: Tarjan returned empty SCC list for start node " + startNodeStorer.getNode().getName());
+                     continue;
+                }
 
-	}
+                Relations = RelationMatrix(SCC);
+                if (Relations == null || Relations.size() == 0) {
+                     System.err.println("Warning: RelationMatrix is empty for start node " + startNodeStorer.getNode().getName());
+                     continue;
+                }
+                PotentialRelationMatrix currentPRM = new PotentialRelationMatrix(Relations, SCC);
+                 PRM.add(currentPRM); // Add even if diagonal not perfect, sort later
+
+                 // Keep track of the best one found so far based on sorting criteria
+                  if (bestPRM == null || currentPRM.compareTo(bestPRM) < 0) { // compareTo is reversed, lower value is better
+                      bestPRM = currentPRM;
+                  }
+          }
+
+
+         // --- Use the best SCC ordering found ---
+          if (bestPRM == null) {
+              System.err.println("ERROR: Could not determine a valid SCC ordering after Tarjan attempts.");
+              // Fallback: Maybe try to solve as one big block? Requires changes.
+              // For now, just exit.
+              return;
+          }
+
+          System.out.println("INFO: Selected SCC ordering with " + bestPRM.ValuesDownDiagonal + " lower-triangular dependencies.");
+          this.SCC = bestPRM.SCC; // Use the best SCC list
+          updateTerms(this.SCC); // Update the list of remaining nodes (_Nodes)
+          RelationMatrix2Newton(RelationMatrix(this.SCC), this.SCC); // Solve using the best ordering
+
+
+    }
 
 	/**
 	 * After one tarjan iteration, this._Nodes must be updated, erasing the
@@ -387,54 +408,149 @@ public class PrepareMatrix {
 	 * @param Variables
 	 * @param scc
 	 */
-	private void MakeJacobian(LinkedList<Integer> Variables,
-			ArrayList<ArrayList<Node>> scc) {
-		Collections.sort(Variables);
-		Iterator<Integer> it = Variables.listIterator();
-		Iterator<ArrayList<Node>> nodo = scc.listIterator();
-		Iterator<Node> n;
-		LinkedList<Integer> Functions = new LinkedList<Integer>();
-		LinkedList<Integer> Vars = new LinkedList<Integer>();
-		int i = 0, size = Variables.size(), aux, j = 0;
+	private void MakeJacobian(LinkedList<Integer> VariablesIndices, ArrayList<ArrayList<Node>> scc) {
+        // Sort indices for consistency (optional but good)
+        Collections.sort(VariablesIndices);
 
-		int itvar = it.next();
-		while (nodo.hasNext()) {
-			n = nodo.next().listIterator();
-			while (n.hasNext()) {
-				aux = n.next().name;
+        // Find the corresponding function indices from the SCC structure
+        LinkedList<Integer> FunctionsIndices = new LinkedList<>();
+        boolean[] varUsed = new boolean[CheckString.Var.getSize()]; // Track variables used in this subsystem
+        boolean[] funcUsed = new boolean[CheckString.Functions.size()]; // Track functions used
 
-				if (aux < 0 & i < size) {
-					Functions.add(Math.abs(aux) - 1);// Add function position of
-														// the
-														// CheckString.Functions
-					n.remove();
-					i++;
-				} else {
-					if (j == itvar) {
-						if (it.hasNext())
-							itvar = it.next();
-						Vars.add(aux - 1);
-						n.remove();
-					}
+        // Mark variables belonging to this subsystem
+        for (Integer varIndex : VariablesIndices) {
+            if (varIndex != null && varIndex >= 0 && varIndex < varUsed.length) {
+                 varUsed[varIndex] = true;
+            }
+        }
 
-					j++;
-				}
+        // Find functions that involve *only* variables from this subsystem
+        // This requires iterating through the original GLOBAL CheckString lists
+        for (int funcIndex = 0; funcIndex < CheckString.Functions.size(); funcIndex++) {
+             EqStorer eq = CheckString.Functions.get(funcIndex);
+             boolean belongsToSubsystem = true;
+             boolean usesAnySubsystemVar = false;
+
+             if (eq.aux == null) continue; // Skip if no variables
+
+             for (DerivEquation de : eq.aux) {
+                  int varIndex = findVarIndexGlobal(de.GetVar()); // Find index in GLOBAL list
+                  if (varIndex != -1) {
+                       if (varUsed[varIndex]) {
+                            usesAnySubsystemVar = true; // This function uses a variable from our target list
+                       } else {
+                            belongsToSubsystem = false; // This function uses a variable NOT in our target list
+                            break; // No need to check further variables for this function
+                       }
+                  } else {
+                       // Variable from equation not found in global list - parsing error?
+                       belongsToSubsystem = false;
+                       break;
+                  }
+             }
+
+             // Add function index if it belongs exclusively to this subsystem's variables
+             // AND it hasn't already been assigned to another subsystem (though Tarjan should prevent overlap)
+             if (belongsToSubsystem && usesAnySubsystemVar) {
+                 FunctionsIndices.add(funcIndex);
+                 funcUsed[funcIndex] = true; // Mark as used
+             }
+        }
+
+        // Simple check - often fails if Tarjan groups strangely, but basic sanity check
+        if (FunctionsIndices.size() != VariablesIndices.size()) {
+             System.out.println("WARNING: Subsystem identified by Tarjan has mismatched function/variable count ("+FunctionsIndices.size()+" funcs, "+VariablesIndices.size()+" vars). Solver might fail.");
+             System.out.println("  Functions Indices: " + FunctionsIndices);
+             System.out.println("  Variables Indices: " + VariablesIndices);
+        }
+        if (FunctionsIndices.isEmpty() || VariablesIndices.isEmpty()) {
+             System.out.println("INFO: Skipping empty subsystem identified by Tarjan.");
+             return; // Nothing to solve
+        }
+
+
+        // --- CORRECTED CALL to LaunchOperations constructor ---
+        solver.LaunchOperations LO = new solver.LaunchOperations(FunctionsIndices, VariablesIndices);
+        // --- END CORRECTION ---
+
+        solver.OperationCounter OC = new solver.OperationCounter();
+        Thread N = new Thread(OC, "Clock");
+        Thread m = new Thread(LO, "Operations");
+        N.start();
+        m.start();
+        while (m.isAlive()) {
+            if (!N.isAlive()) {
+                m.interrupt(); // Use interrupt instead of stop
+                System.err.println("WARNING: Solver thread interrupted due to timeout!");
+                Config.ErrorFound = true; // Indicate timeout potentially led to incomplete solve
+                break; // Exit wait loop
+            }
+             // Optional: Add a short sleep to prevent busy-waiting
+             try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+        // Wait briefly for thread to potentially finish after interrupt
+        try { m.join(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+
+         // Remove solved functions and variables from global lists for next iteration
+         // This requires careful index management as lists shrink
+         removeSolvedItems(FunctionsIndices, VariablesIndices);
+
+    }
+
+	// --- Helper to find index in GLOBAL CheckString.Var.Variables ---
+	private int findVarIndexGlobal(String variable) {
+		for (int i = 0; i < CheckString.Var.Variables.size(); i++) {
+			if (CheckString.Var.Variables.get(i).getVar().equalsIgnoreCase(variable)) {
+				return i;
 			}
 		}
-		// Now i have two lists with the numbers of the functions and the
-		// variables
+		return -1;
+	}
 
-		/*-----------------------------------------SOLVER CALL-----------------------*/
-		solver.LaunchOperations LO = new solver.LaunchOperations(Functions,
-				Vars);
-		solver.OperationCounter OC = new solver.OperationCounter();
-		Thread N = new Thread(OC, "Clock");
-		Thread m = new Thread(LO, "Operations");
-		N.start();
-		m.start();
-		while (m.isAlive())
-			if (!N.isAlive())
-				m.interrupt();
+	// --- Helper to remove solved items, managing indices ---
+	private void removeSolvedItems(LinkedList<Integer> solvedFuncIndices, LinkedList<Integer> solvedVarIndices) {
+		// Remove items from higher indices first to avoid shifting issues
+		Collections.sort(solvedFuncIndices, Collections.reverseOrder());
+		for (int index : solvedFuncIndices) {
+			if (index >= 0 && index < CheckString.Functions.size()) {
+				CheckString.Functions.remove(index);
+			}
+		}
+
+		Collections.sort(solvedVarIndices, Collections.reverseOrder());
+		for (int index : solvedVarIndices) {
+			if (index >= 0 && index < CheckString.Var.Variables.size()) {
+				// Move solved var to OneEquationVar list before removing from main list
+				VString solvedVar = CheckString.Var.Variables.get(index);
+				boolean alreadyMoved = false;
+				for(VString vs : CheckString.OneEquationVar) {
+					if(vs.getVar().equalsIgnoreCase(solvedVar.getVar())) {
+						alreadyMoved = true; break;
+					}
+				}
+				if (!alreadyMoved) CheckString.OneEquationVar.add(solvedVar);
+
+				CheckString.Var.Variables.remove(index);
+			}
+		}
+
+		// Also need to update the node lists used for Tarjan if PrepareMatrix is reused
+		updateNodesAfterSolve(solvedFuncIndices, solvedVarIndices);
+	}
+
+	// --- Helper to update internal node lists ---
+	private void updateNodesAfterSolve(LinkedList<Integer> solvedFuncIndices, LinkedList<Integer> solvedVarIndices) {
+		// Remove corresponding nodes from VarNodes and FuncNodes
+		LinkedList<Integer> funcNodeNames = new LinkedList<>();
+		for(int i : solvedFuncIndices) funcNodeNames.add(-(i+1)); // Convert back to negative node name
+		FuncNodes.removeIf(node -> funcNodeNames.contains(node.getName()));
+
+		LinkedList<Integer> varNodeNames = new LinkedList<>();
+		for(int i : solvedVarIndices) varNodeNames.add(i+1); // Convert back to positive node name
+		VarNodes.removeIf(node -> varNodeNames.contains(node.getName()));
+
+		// Also remove from _Nodes list used for initial sorting
+			_Nodes.removeIf(nodoStorer -> varNodeNames.contains(nodoStorer.getNode().getName()));
 
 	}
 
@@ -445,57 +561,61 @@ public class PrepareMatrix {
 	 */
 
 	public static void PreTarjan() {
-
-		Iterator<VString> it;
-		boolean found = false;
-		VString auxV;
-
-		/*--Search equations with one variable, for solving them--*/
 		int pos = 0;
-
 		while (pos != -1) {
-			found = false;
-
 			pos = searchOneVariableFunction();
-
 			if (pos != -1) {
-
-				/*--------------------------------ONE VARIABLE SOLVER CALL-----------------------*/
-
-				solver.LaunchOperations LO = new solver.LaunchOperations(
-						CheckString.Functions.get(pos).getEquation(),
-						CheckString.Functions.get(pos).aux.get(0).GetVar());
+				String functionString = CheckString.Functions.get(pos).getEquation();
+				String varString = CheckString.Functions.get(pos).aux.get(0).GetVar();
+				System.out.println("INFO: Pre-solving single variable function (Index " + pos + ") for variable: " + varString);
+				solver.LaunchOperations LO = new solver.LaunchOperations(functionString, varString);
 				solver.OperationCounter OC = new solver.OperationCounter();
-				Thread n = new Thread(OC, "Clock");
+				Thread N = new Thread(OC, "Clock"); // N is defined HERE
 				Thread m = new Thread(LO, "Operations");
-				n.start();
+				N.start();
 				m.start();
-				while (m.isAlive())
-					if (!n.isAlive())
+				while (m.isAlive()) {
+					if (!N.isAlive()) { // N is accessible here
 						m.interrupt();
-
-				// Change the function from Var to OneEquationVar
-				it = CheckString.Var.Variables.listIterator();
-				while (it.hasNext() & !found) {
-					auxV = it.next();
-					if (auxV.getVar().equalsIgnoreCase(
-							CheckString.Functions.get(pos).aux.get(0).GetVar())) {
-						CheckString.OneEquationVar.add(auxV);
-DiffAndEvaluator.Evaluate(auxV.getVar());					
-						it.remove();
-						found = true;
+						System.err.println("WARNING: Pre-solver thread interrupted due to timeout for var " + varString + "!");
+						Config.ErrorFound = true; // Access Config correctly
+						break;
 					}
+					try { Thread.sleep(50); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 				}
-				updateFunctions(CheckString.Functions.get(pos).aux.get(0)
-						.GetVar());
-				// Store the function
-				CheckString.FunctionsSolved.add(CheckString.Functions.get(pos));
-				// Remove the function from functions
-				CheckString.Functions.remove(pos);
+				try { m.join(100); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
 
+				if (!Config.ErrorFound) { // Access Config correctly
+					// ... rest of removal logic ...
+					// Find the corresponding VString in global Var list
+					Iterator<VString> itVar = CheckString.Var.Variables.iterator();
+					VString solvedVString = null;
+					while(itVar.hasNext()){
+							VString current = itVar.next();
+							if(current.getVar().equalsIgnoreCase(varString)){
+								solvedVString = current;
+								itVar.remove(); // Remove from unsolved list
+								break;
+							}
+					}
+					// Add to solved list (if found)
+					if(solvedVString != null) {
+							boolean alreadyMoved = false;
+							for(VString vs : CheckString.OneEquationVar) if(vs.getVar().equalsIgnoreCase(solvedVString.getVar())) alreadyMoved = true;
+							if(!alreadyMoved) CheckString.OneEquationVar.add(solvedVString);
+					} else {
+							System.err.println("Warning: Could not find variable " + varString + " in global list after pre-solve.");
+					}
+
+					updateFunctions(varString);
+					CheckString.FunctionsSolved.add(CheckString.Functions.get(pos));
+					CheckString.Functions.remove(pos);
+				} else {
+					System.err.println("Skipping removal of function/variable " + varString + " due to solve error.");
+					break;
+				}
 			}
 		}
-
 	}
 
 	/**

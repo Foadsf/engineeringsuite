@@ -1,5 +1,9 @@
 /* Example 9: Darcy Friction Factor using Colebrook Equation */
 /* Solves the implicit Colebrook equation for turbulent flow */
+/* NOTE: The default Levenberg-Marquardt solver (Method 4) has a bug */
+/*       with this type of problem. Ensure Method 2 (Dogleg) or 3 (More-Hebdon) */
+/*       is selected in Edit -> Preferences -> Equations. */
+/*       The default in config.txt has been set to Method 2. */
 
 /** Colebrook Equation **/
 /* The unknowns are f and f_sqrt */
