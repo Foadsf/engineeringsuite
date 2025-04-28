@@ -86,22 +86,48 @@ jobs:
         Copy-Item -Path 'icons\logo.png' -Destination 'choco-pkg-src\tools\'
         echo "Chocolatey package source prepared in choco-pkg-src"
 
-    - name: Build Chocolatey Package
+        - name: Build Chocolatey Package
       shell: powershell
       run: |
-        # Use the version derived earlier
-        $version = "${{ env.VERSION }}"
+        # --- Re-determine version within this step ---
+        Write-Host "GitHub Ref: $env:GITHUB_REF" # Add for debugging
+        if ($env:GITHUB_REF -like 'refs/tags/v*') {
+          $version = $env:GITHUB_REF -replace 'refs/tags/', ''
+          Write-Host "Version derived from tag: $version"
+        } else {
+          # Should not happen if triggered by tag, but provide fallback
+          $version = "dev-${{ github.run_number }}"
+          Write-Host "Version derived from fallback: $version"
+        }
+        # --- End Re-determination ---
+
         # Run choco pack inside the prepared directory
         cd choco-pkg-src
+        Write-Host "Running choco pack..."
         choco pack
         # Check if packing succeeded
         if ($LASTEXITCODE -ne 0) {
             Write-Error "choco pack failed!"
             exit 1
         }
-        # Move the generated nupkg back up and rename based on tag/version
-        $nupkgName = "engineeringsuite.${version}.nupkg"
-        Move-Item -Path "engineeringsuite.${version}.nupkg" -Destination "..\${nupkgName}" -Force
+        Write-Host "Choco pack succeeded."
+
+        # Construct the expected nupkg path based on the version determined above
+        $expectedNupkgPath = "engineeringsuite.${version}.nupkg"
+        Write-Host "Expected NUPKG path inside choco-pkg-src: $expectedNupkgPath"
+
+        # Check if the expected file exists before moving
+        if (-not (Test-Path -Path $expectedNupkgPath -PathType Leaf)) {
+             Write-Error "Packed file '$expectedNupkgPath' not found after choco pack!"
+             # List files for debugging:
+             Get-ChildItem -Path .
+             exit 1
+        }
+
+        # Move the generated nupkg back up
+        $nupkgName = "engineeringsuite.${version}.nupkg" # Use the correctly derived version
+        Write-Host "Moving '$expectedNupkgPath' to '..\${nupkgName}'"
+        Move-Item -Path $expectedNupkgPath -Destination "..\${nupkgName}" -Force
         echo "CHOCO_PKG_NAME=$nupkgName" >> $env:GITHUB_ENV # Share nupkg name
         cd .. # Go back to workspace root
         echo "Created Chocolatey package: $nupkgName"
