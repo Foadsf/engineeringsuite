@@ -55,7 +55,9 @@ jobs:
           $version = "dev-${{ github.run_number }}"
         }
         $assetName = "eSuite-${version}.zip"
-        Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, Example.ris, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath $assetName -Force
+        # --- MODIFIED LINE BELOW ---
+        Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, examples, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath $assetName -Force
+        # --- END MODIFIED LINE ---
         echo "ASSET_NAME=$assetName" >> $env:GITHUB_ENV # Share asset name with later steps
         echo "VERSION=$version" >> $env:GITHUB_ENV # Share version with later steps
         echo "Created Application ZIP: $assetName"
