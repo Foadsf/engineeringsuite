@@ -3,7 +3,7 @@ FontSize: 14
 Theme: Nimbus
 MaxNumberOfIterations: 200
 Precision: 1.0E-8
-Language: Español
+Language: English
 DefaultInitialValue: 1.0
 MaximumTimeOperation: 10
 MaxPositivePlot: 214748.0

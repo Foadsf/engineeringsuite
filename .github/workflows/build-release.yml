@@ -1,0 +1,68 @@
+name: Build and Package Windows Release
+
+on:
+  push:
+    branches: [ main ] # Or your default branch
+  release:
+    types: [ created ] # Trigger when a new release is published
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    # Need write permissions to upload release assets
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 22
+      uses: actions/setup-java@v4
+      with:
+        java-version: '22'
+        distribution: 'temurin' # Or 'microsoft' if you prefer the one installed via winget
+
+    - name: Compile Java code
+      shell: cmd
+      run: |
+        echo "Creating bin directory..."
+        mkdir bin
+        echo "Generating sources list..."
+        dir /s /b src\*.java > sources.txt
+        echo "Compiling..."
+        javac -d bin -cp "Dependencies\*" @sources.txt
+        if %errorlevel% neq 0 exit /b %errorlevel%
+        echo "Compilation successful."
+
+    - name: Create run script
+      shell: cmd
+      run: |
+        echo @echo off > run-esuite.bat
+        echo java -cp ".;bin;Dependencies\*" gui.Principal >> run-esuite.bat
+        echo pause >> run-esuite.bat
+
+    - name: Package application into ZIP
+      shell: powershell
+      run: |
+        Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, Example.ris, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath eSuite-v${{ github.ref_name || 'manual' }}.zip
+        echo "Created eSuite-v${{ github.ref_name || 'manual' }}.zip"
+
+    # Upload artifact for pushes or manual runs for inspection
+    - name: Upload build artifact (for pushes/manual)
+      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+      uses: actions/upload-artifact@v4
+      with:
+        name: eSuite-Windows-Package
+        path: eSuite-v${{ github.ref_name || 'manual' }}.zip
+
+    # Upload asset to the release if triggered by a release event
+    - name: Upload Release Asset
+      if: github.event_name == 'release'
+      uses: softprops/action-gh-release@v1 # Popular action for release management
+      with:
+        files: eSuite-v${{ github.ref_name }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use the default token
