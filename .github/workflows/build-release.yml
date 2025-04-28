@@ -86,21 +86,15 @@ jobs:
         Copy-Item -Path 'icons\logo.png' -Destination 'choco-pkg-src\tools\'
         echo "Chocolatey package source prepared in choco-pkg-src"
 
-    - name: Build Chocolatey Package
-      # 'shell' and 'run' should be defined only ONCE at this level for the step
+        - name: Build Chocolatey Package
       shell: powershell
       run: |
-        # --- Re-determine version within this step ---
-        Write-Host "GitHub Ref: $env:GITHUB_REF" # Add for debugging
-        if ($env:GITHUB_REF -like 'refs/tags/v*') {
-          $version = $env:GITHUB_REF -replace 'refs/tags/', ''
-          Write-Host "Version derived from tag: $version"
-        } else {
-          # Should not happen if triggered by tag, but provide fallback
-          $version = "dev-${{ github.run_number }}"
-          Write-Host "Version derived from fallback: $version"
-        }
-        # --- End Re-determination ---
+        # --- Determine the version specified IN the nuspec file ---
+        # Use PowerShell's XML handling to read the version tag
+        [xml]$nuspec = Get-Content -Path "choco-pkg-src\engineeringsuite.nuspec"
+        $nuspecVersion = $nuspec.package.metadata.version
+        Write-Host "Version found in nuspec: $nuspecVersion"
+        # --- End nuspec version determination ---
 
         # Run choco pack inside the prepared directory
         cd choco-pkg-src
@@ -113,20 +107,19 @@ jobs:
         }
         Write-Host "Choco pack succeeded."
 
-        # Construct the expected nupkg path based on the version determined above
-        $expectedNupkgPath = "engineeringsuite.${version}.nupkg"
-        Write-Host "Expected NUPKG path inside choco-pkg-src: $expectedNupkgPath"
+        # --- Use the NUSPEC version to construct the expected path ---
+        $expectedNupkgPath = "engineeringsuite.${nuspecVersion}.nupkg"
+        Write-Host "Expected NUPKG path inside choco-pkg-src (using nuspec version): $expectedNupkgPath"
 
         # Check if the expected file exists before moving
         if (-not (Test-Path -Path $expectedNupkgPath -PathType Leaf)) {
              Write-Error "Packed file '$expectedNupkgPath' not found after choco pack!"
-             # List files for debugging:
-             Get-ChildItem -Path .
+             Get-ChildItem -Path . # List files for debugging
              exit 1
         }
 
-        # Move the generated nupkg back up
-        $nupkgName = "engineeringsuite.${version}.nupkg" # Use the correctly derived version
+        # Move the generated nupkg back up using the nuspec version
+        $nupkgName = "engineeringsuite.${nuspecVersion}.nupkg"
         Write-Host "Moving '$expectedNupkgPath' to '..\${nupkgName}'"
         Move-Item -Path $expectedNupkgPath -Destination "..\${nupkgName}" -Force
         echo "CHOCO_PKG_NAME=$nupkgName" >> $env:GITHUB_ENV # Share nupkg name
