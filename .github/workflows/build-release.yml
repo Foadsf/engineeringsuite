@@ -2,7 +2,7 @@ name: Build and Package Windows Release
 
 on:
   push:
-    branches: [ main ] # Or your default branch
+    branches: [ master ] # Or your default branch
   release:
     types: [ created ] # Trigger when a new release is published
   workflow_dispatch: # Allows manual triggering
