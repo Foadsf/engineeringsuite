@@ -2,14 +2,14 @@ name: Build and Package Windows Release
 
 on:
   push:
-    branches: [ master ] # Optional: Keep building on pushes to main (creates artifact only)
+    branches: [ master ] # Optional: Build on pushes to master (creates artifact only)
     tags:
-      - 'v*'        # *** TRIGGER on tags starting with 'v' (e.g., v1.0, v1.0.2) ***
+      - 'v*'        # TRIGGER on tags starting with 'v' (e.g., v1.0, v1.0.2)
   workflow_dispatch: # Allows manual triggering
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-latest # Use a Windows runner
 
     permissions:
       contents: write # Needed to create/upload releases
@@ -17,12 +17,14 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Fetches all history so tags are available
 
     - name: Set up JDK 22
       uses: actions/setup-java@v4
       with:
         java-version: '22'
-        distribution: 'temurin'
+        distribution: 'temurin' # Using Eclipse Temurin distribution
 
     - name: Compile Java code
       shell: cmd
@@ -46,8 +48,7 @@ jobs:
     - name: Package application into ZIP
       shell: powershell
       run: |
-        # Extract version from tag (e.g., refs/tags/v1.0.2 becomes v1.0.2)
-        # Use a fallback name for non-tag triggers
+        # Extract version from tag or set default
         if ($env:GITHUB_REF -like 'refs/tags/v*') {
           $version = $env:GITHUB_REF -replace 'refs/tags/', ''
         } else {
@@ -56,27 +57,77 @@ jobs:
         $assetName = "eSuite-${version}.zip"
         Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, Example.ris, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath $assetName -Force
         echo "ASSET_NAME=$assetName" >> $env:GITHUB_ENV # Share asset name with later steps
-        echo "Created $assetName"
+        echo "VERSION=$version" >> $env:GITHUB_ENV # Share version with later steps
+        echo "Created Application ZIP: $assetName"
 
-    # Upload artifact for ALL runs (pushes, tags, manual) for inspection/testing
-    - name: Upload build artifact
+    - name: Prepare Chocolatey package source
+      shell: powershell
+      run: |
+        # Create the structure expected by choco pack
+        New-Item -Path 'choco-pkg-src' -ItemType Directory -Force
+        New-Item -Path 'choco-pkg-src\tools' -ItemType Directory -Force
+        # Copy the nuspec and ps1 scripts from the repo (assuming they are in ./chocolatey)
+        if (Test-Path -Path 'chocolatey\engineeringsuite.nuspec') {
+            Copy-Item -Path 'chocolatey\engineeringsuite.nuspec' -Destination 'choco-pkg-src\'
+        } else {
+            Write-Error "engineeringsuite.nuspec not found in ./chocolatey directory"
+            exit 1
+        }
+        if (Test-Path -Path 'chocolatey\tools\chocolateyInstall.ps1') {
+            Copy-Item -Path 'chocolatey\tools\*' -Destination 'choco-pkg-src\tools\'
+        } else {
+             Write-Error "Chocolatey install/uninstall scripts not found in ./chocolatey/tools directory"
+             exit 1
+        }
+        # Copy necessary files for embedding (into the package's tools dir)
+        # We need the zip, license, and icon (for the shortcut)
+        Copy-Item -Path "${{ env.ASSET_NAME }}" -Destination 'choco-pkg-src\tools\' # Copy the already created zip
+        Copy-Item -Path 'lgpl.txt' -Destination 'choco-pkg-src\tools\'
+        Copy-Item -Path 'icons\logo.png' -Destination 'choco-pkg-src\tools\'
+        echo "Chocolatey package source prepared in choco-pkg-src"
+
+    - name: Build Chocolatey Package
+      shell: powershell
+      run: |
+        # Use the version derived earlier
+        $version = "${{ env.VERSION }}"
+        # Run choco pack inside the prepared directory
+        cd choco-pkg-src
+        choco pack
+        # Check if packing succeeded
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "choco pack failed!"
+            exit 1
+        }
+        # Move the generated nupkg back up and rename based on tag/version
+        $nupkgName = "engineeringsuite.${version}.nupkg"
+        Move-Item -Path "engineeringsuite.${version}.nupkg" -Destination "..\${nupkgName}" -Force
+        echo "CHOCO_PKG_NAME=$nupkgName" >> $env:GITHUB_ENV # Share nupkg name
+        cd .. # Go back to workspace root
+        echo "Created Chocolatey package: $nupkgName"
+
+    # Upload artifacts for ALL runs (pushes, tags, manual) for inspection/testing
+    - name: Upload build artifacts (ZIP and NUPKG)
       uses: actions/upload-artifact@v4
       with:
-        name: eSuite-Windows-Package
-        path: ${{ env.ASSET_NAME }}
+        name: eSuite-Windows-Build-${{ env.VERSION }}
+        path: |
+          ${{ env.ASSET_NAME }}
+          ${{ env.CHOCO_PKG_NAME }}
 
-    # *** Create/Update GitHub Release ONLY for tag pushes ***
+    # Create/Update GitHub Release ONLY for tag pushes starting with 'v'
     - name: Create/Update GitHub Release
-      # Only run this step if the trigger was a tag push starting with 'v'
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
-        # tag_name: ${{ github.ref_name }} # Uses the tag that triggered the workflow
-        files: ${{ env.ASSET_NAME }} # The ZIP file created earlier
-        # You can add options like 'body', 'name', 'draft', 'prerelease' here
-        # Example: Create a draft release named after the tag
-        # name: "Release ${{ github.ref_name }}"
-        # draft: true
+        # Upload BOTH the ZIP and the NUPKG
+        files: |
+          ${{ env.ASSET_NAME }}
+          ${{ env.CHOCO_PKG_NAME }}
+        # Optional: Set release title based on tag
+        name: "Engineering Suite ${{ env.VERSION }}"
+        # Optional: Mark as draft or prerelease if desired
+        # draft: false
         # prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Uses the default token provided by GitHub

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <!-- Required elements-->
+    <id>engineeringsuite</id> <!-- lowercase, no spaces, unique ID -->
+    <version>1.0.2</version> <!-- Corresponds to your application version -->
+    <title>Engineering Suite</title> <!-- Human-friendly title -->
+    <authors>naguillo@gmail.com, Foadsf (Maintainer)</authors> <!-- Original author, your GH username -->
+    <owners>Foadsf</owners> <!-- Your GitHub username -->
+
+    <!-- Optional elements -->
+    <projectUrl>https://github.com/Foadsf/engineeringsuite</projectUrl> <!-- URL to your GitHub repo -->
+    <iconUrl>https://raw.githubusercontent.com/Foadsf/engineeringsuite/master/icons/logo.png</iconUrl> <!-- Use the actual raw URL -->
+    <licenseUrl>https://www.gnu.org/licenses/lgpl-3.0.txt</licenseUrl> <!-- Link to standard license -->
+    <requireLicenseAcceptance>false</requireLicenseAcceptance> <!-- LGPL doesn't typically require explicit acceptance via checkbox -->
+    <projectSourceUrl>https://github.com/Foadsf/engineeringsuite</projectSourceUrl> <!-- Optional: Link to source -->
+    <!-- <docsUrl>https://github.com/Foadsf/engineeringsuite/wiki</docsUrl> --> <!-- Optional: Link to docs -->
+    <!-- <mailingListUrl></mailingListUrl> -->
+    <!-- <bugTrackerUrl></bugTrackerUrl> -->
+    <tags>esuite engineeringsuite equations solver non-linear thermodynamics java swing admin foss</tags> <!-- Keywords -->
+    <summary>Open source and multiplatform equation solver written in Java.</summary>
+    <description>
+Engineering Suite allows users to solve systems of non-linear equations, particularly engineering-type equations.
+
+Features:
+- Solves systems of non-linear algebraic equations.
+- Includes trigonometric, hyperbolic, logarithmic, and exponential functions.
+- Thermodynamic property database for many substances.
+- Complete GUI with undo/redo, save/load, and export to PDF.
+- Four globally convergent algorithms for solving equation systems.
+- Mathematical symbolic program based on Matheclipse.
+- Available in English and Spanish.
+
+This package installs the application for easy use. Requires a Java Runtime Environment (JRE) or JDK.
+    </description>
+    <releaseNotes>https://github.com/Foadsf/engineeringsuite/releases/tag/v1.0.2</releaseNotes> <!-- Link to the specific release notes -->
+    <dependencies>
+      <!-- Require a Java runtime. OpenJDK 11+ is a reasonable minimum. -->
+      <!-- Users might have Oracle Java, Adoptium, etc. installed already. -->
+      <!-- Making 'openjdk' a hard dependency might install it unnecessarily. -->
+      <!-- Consider making it optional or just documenting the requirement. -->
+      <!-- Let's add it as a dependency for now for clarity. -->
+      <dependency id="openjdk" version="11.0.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <!-- Embed everything in the tools folder into the package -->
+    <file src="tools\**" target="tools" />
+    <!-- You can add other files here if needed -->
+  </files>
+</package>
