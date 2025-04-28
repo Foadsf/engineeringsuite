@@ -8,104 +8,86 @@ Open source and multiplatform equation solver written in Java. This project allo
 
 This is a mirror of the original project hosted on Google Code: https://code.google.com/archive/p/engineeringsuite/
 
+**Important Compatibility Note:** Due to old dependencies (jEuclid, Batik) used for rendering mathematical equations, this application **requires a Java 8 Development Kit (JDK) or Java 8 Runtime Environment (JRE)** to run fully without errors, especially in the "eSuite Mathematics" tab. It will likely fail or experience rendering errors on Java 9 or newer.
+
 ## Features
 
 - Solves systems of non-linear algebraic equations in an easy way
 - Includes trigonometric, hyperbolic, logarithmic, and exponential functions
-- Thermodynamic property database for many substances
+- Thermodynamic property database for many substances (User-extendable)
 - Complete GUI with undo/redo, save/load, and export to PDF
-- Four globally convergent algorithms for solving equation systems
-- Mathematical symbolic program based on Matheclipse
+- Four globally convergent algorithms for solving equation systems (Line Search, Dogleg, More-Hebdon, Levenberg-Marquardt)
+- Equation system decomposition using Tarjan's algorithm
+- Mathematical symbolic program based on Matheclipse (requires Java 8 for MathML rendering)
 - Available in English and Spanish
-
-## Example
-
-For solving the second Newton law you only have to introduce the following code:
-
-```
-F = M * A /*It includes trigonometric, hiperbolic, logarithms and exponential functions*/
-M = 2 * 2 + 1 - 1 + sin(Pi) + sinh(2.7)
-A = 2^2*(exp(2/3)+log(1))
-```
 
 ## Prerequisites (Windows)
 
-- **Java Development Kit (JDK):** You need a JDK (version 8 or later recommended, tested with OpenJDK 22) installed and configured on your system PATH. You can install it using package managers:
-    - Chocolatey: `choco install openjdk`
-    - Winget: `winget install Microsoft.OpenJDK.21` (or `.17`, `.11`, etc.)
+- **Java 8 Development Kit (JDK 8):** You **must** have a JDK 8 (e.g., Adoptium Temurin 8, Oracle JDK 8, Amazon Corretto 8) installed. Newer JDK versions will cause errors in the Mathematics tab rendering. Ensure the JDK 8 `bin` directory is in your system PATH or you use the full path to `java.exe`/`javac.exe`.
+    - **Installation via Chocolatey:** `choco install adoptopenjdk8 -y`
 - **Command Line:** Windows `cmd` or PowerShell.
 
-Verify your JDK installation by opening `cmd` and running `java -version` and `javac -version`.
+Verify your JDK 8 installation by opening `cmd` and running `java -version` (it should report version 1.8.x) and `javac -version` (should report `javac 1.8.x`). If you have multiple JDKs, ensure JDK 8 is the active one in your PATH or use full paths in the commands below.
 
-## Building (Windows Command Line)
+## Building (Windows Command Line with JDK 8)
 
-1.  **Navigate to Project Root:** Open `cmd` or PowerShell in the directory where you cloned or extracted the project (e.g., `C:\dev\Java\20250428\engineeringsuite-work\engineeringsuite-git`).
+1.  **Navigate to Project Root:** Open `cmd` or PowerShell in the project's root directory.
     ```cmd
     cd path\to\engineeringsuite-git
     ```
-2.  **Create Output Directory:** Create a directory to store the compiled `.class` files.
+2.  **Create Output Directory:**
     ```cmd
     mkdir bin
     ```
-3.  **List Source Files:** Create a temporary file listing all `.java` source files.
+3.  **List Source Files:**
     ```cmd
     dir /s /b src\*.java > sources.txt
     ```
-4.  **Compile:** Compile the source code using the dependencies provided.
+4.  **Compile:** Use the JDK 8 `javac` and specify UTF-8 encoding.
     ```cmd
-    javac -d bin -cp "Dependencies\*" @sources.txt
+    rem Ensure javac from JDK 8 is used (check with javac -version)
+    rem Or use the full path, e.g.:
+    rem "C:\Program Files\Eclipse Adoptium\jdk-8.0.xxx.yy-hotspot\bin\javac.exe" -encoding UTF-8 -d bin -cp "Dependencies\*" @sources.txt
+
+    javac -encoding UTF-8 -d bin -cp "Dependencies\*" @sources.txt
     ```
+    *   `-encoding UTF-8`: Handles potential special characters in source file comments.
     *   `-d bin`: Output compiled files to the `bin` directory.
-    *   `-cp "Dependencies\*"`: Include all JAR files from the `Dependencies` folder in the classpath.
-    *   `@sources.txt`: Read the list of source files from `sources.txt`.
+    *   `-cp "Dependencies\*"`: Include library JARs.
+    *   `@sources.txt`: Read source files list.
 
-    **Note:** You may see several deprecation warnings during compilation if using a modern JDK (like 17 or 21). This is expected as the code is older. As long as there are no *errors*, the compilation was successful.
+    **Note:** You may see warnings about "unchecked or unsafe operations". These are expected with older code and can be ignored if compilation succeeds without errors.
 
-## Running (Windows Command Line)
+## Running (Windows Command Line with JDK 8)
 
-1.  **Navigate to Project Root:** Ensure your command prompt is still in the project's root directory.
-2.  **Run the Application:** Execute the main class using the `java` command, including the compiled code, dependencies, and current directory in the classpath.
+1.  **Navigate to Project Root:** Ensure your command prompt is in the project's root directory.
+2.  **Run the Application:** Execute using the JDK 8 `java` command.
     ```cmd
+    rem Ensure java from JDK 8 is used (check with java -version)
+    rem Or use the full path, e.g.:
+    rem "C:\Program Files\Eclipse Adoptium\jdk-8.0.xxx.yy-hotspot\bin\java.exe" -cp ".;bin;Dependencies\*" gui.Principal
+
     java -cp ".;bin;Dependencies\*" gui.Principal
     ```
     *   `-cp ".;bin;Dependencies\*"`: Sets the runtime classpath.
-        *   `.`: Current directory (for resources like `config.txt`, `icons`, `Imagenes`).
+        *   `.`: Current directory (for resources like `config.txt`, `icons`, `examples`).
         *   `bin`: Your compiled code.
         *   `Dependencies\*`: The library JARs.
-    *   `gui.Principal`: The fully qualified name of the main class.
+    *   `gui.Principal`: The main class.
 
-3.  **Language:** The application might start in Spanish by default. To change it to English:
-    *   **Option 1 (Edit File):** Close the application. Open `config.txt` in the project root, change the line `Language: Español` to `Language: English`, save the file, and rerun the `java` command above.
-    *   **Option 2 (GUI):** Use the menus (likely Edit -> Preferences or similar) within the application to change the language setting, apply, close, and restart.
+3.  **Language:** The application might start in Spanish. Edit `config.txt` and change `Language: Español` to `Language: English`, then restart.
 
 ## Troubleshooting
 
-- **`javac` or `java` not found:** Ensure the JDK `bin` directory is in your system's PATH environment variable.
-- **Compilation Errors (`Cannot find symbol`, `package does not exist`):** Usually a classpath (`-cp`) issue. Verify the `Dependencies` folder path and its contents. If errors persist with a modern JDK, try compiling with an older version like JDK 11 or 8.
-- **Runtime Errors (`Could not find or load main class`, `NoClassDefFoundError`):** Usually a runtime classpath (`-cp`) issue. Double-check the `java` command, ensure `bin` and `Dependencies\*` are correct, and that you are running from the project root directory.
-- **Resource Errors (Cannot find `config.txt`, icons, etc.):** Ensure `.` is part of the runtime classpath and you are running from the project root directory.
+- **`javac` or `java` not found / Wrong Version:** Ensure the JDK 8 `bin` directory is correctly configured in your system's PATH environment variable, or use the full explicit path to the executables.
+- **`error: unmappable character ... for encoding windows-1252`:** Add `-encoding UTF-8` to your `javac` command.
+- **`NoClassDefFoundError: org/w3c/dom/events/CustomEvent` (or similar Batik/jEuclid error):** You are likely **not** running with Java 8. Switch to a JDK 8 / JRE 8 environment.
+- **Resource Errors (Cannot find `config.txt`, icons, etc.):** Ensure `.` is part of the runtime classpath (`-cp ".;...`) and you are running the `java` command from the project's root directory.
+- **Solver Errors:** Check initial values, ensure equation/variable counts match (or ignore the initial warning if inputs are defined later), and consider trying different solver methods via Edit -> Preferences.
 
 ## Examples
 
-A collection of examples demonstrating various features can be found in the `/examples` directory:
-
-- `01_Introduction.ris`: Basic syntax, comments, built-in functions, simple thermo call.
-- `02_LinearSystem.ris`: Simple 2x2 linear system.
-- `03_NonLinearSystem.ris`: Non-linear system (circle/line) demonstrating need for initial values.
-- `04_Thermodynamics.ris`: Using a different property (Air Enthalpy) from the database.
-- `07_PlottingExamples.md`: Instructions for using the 2D plotting feature in the "eSuite Mathematics" tab.
-- **`08_HeatExchangerLMTD.ris`**: Solves a common counter-flow heat exchanger problem (non-linear).
-- **`09_ImplicitFrictionFactor.ris`**: Solves the implicit Colebrook equation for Darcy friction factor.
-- **`10_SymbolicAndNumerical.md`**: Demonstrates using the symbolic engine to find a derivative for use in the numerical solver.
-
-To run `.ris` examples:
-1. Start Engineering Suite.
-2. Go to File -> Open.
-3. Navigate to the `examples` folder and select the desired `.ris` file.
-4. Click the "Play" button (or press F3) to solve.
-5. Check the "Results" and "Log" tabs.
-
-For `.md` examples, follow the instructions within the file.
+Examples can be found in the `/examples` directory. See `examples/README.md` for details.
 
 ## License
 
@@ -114,4 +96,4 @@ This project is licensed under the GNU Lesser GPL (see `lgpl.txt`).
 ## Acknowledgments
 
 - This project was originally developed by **naguillo@gmail.com**.
-- It utilizes several third-party libraries included in the `Dependencies` folder, such as Matheclipse (symja), iText, Apache Commons, jEuclid, RSyntaxTextArea, SwingX, and others necessary for its functionality.
+- It utilizes several third-party libraries included in the `Dependencies` folder, such as Matheclipse (symja), iText, Apache Commons, jEuclid, RSyntaxTextArea, SwingX, and others.

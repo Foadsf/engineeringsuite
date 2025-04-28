@@ -401,20 +401,61 @@ public class OutputTextPane extends JTextPane implements MouseListener {
 		}
 	}
 
-	/**
-	 * Adds the equation rendered to the output panel
-	 * 
-	 * @param mathML
-	 */
-	public void RenderPrint(String mathML) {
+	// Add a flag to print debug info only once
+    private static boolean debugInfoPrinted = false;
 
-		JMathComponent component = new JMathComponent();
-		component.setBackground(Color.WHITE);
-		component.setFontSize(25);
-		component.setContent(mathML);
-		this.addComponent(component, jOutputDoc.getLength(), false);
+    /**
+     * Adds the equation rendered to the output panel
+     *
+     * @param mathML
+     */
+    public void RenderPrint(String mathML) {
 
-	}
+        // --- START DEBUGGING ---
+        if (!debugInfoPrinted) {
+            System.out.println("\n--- DEBUG: Entering OutputTextPane.RenderPrint ---");
+            System.out.println("Java Version: " + System.getProperty("java.version"));
+            System.out.println("Java Vendor: " + System.getProperty("java.vendor"));
+            System.out.println("Classpath: " + System.getProperty("java.class.path"));
+            System.out.println("Module Path: " + System.getProperty("jdk.module.path")); // May be null
+
+            ClassLoader cl = this.getClass().getClassLoader();
+            System.out.println("OutputTextPane ClassLoader: " + (cl != null ? cl.toString() : "null"));
+
+            // Try to explicitly load the problematic class
+            try {
+                System.out.println("Attempting to load org.w3c.dom.events.CustomEvent...");
+                Class<?> loadedClass = Class.forName("org.w3c.dom.events.CustomEvent");
+                System.out.println("Successfully loaded CustomEvent class: " + loadedClass.getName());
+                System.out.println("  Loaded by: " + (loadedClass.getClassLoader() != null ? loadedClass.getClassLoader().toString() : "Bootstrap CL"));
+            } catch (ClassNotFoundException e) {
+                System.err.println("ERROR: Failed to load org.w3c.dom.events.CustomEvent explicitly!");
+                System.err.println("  Reason: " + e.getMessage());
+            } catch (Throwable t) { // Catch any other potential loading errors
+                 System.err.println("ERROR: Unexpected error during explicit load of CustomEvent!");
+                 t.printStackTrace(System.err);
+            }
+            System.out.println("--- END DEBUG ---");
+            debugInfoPrinted = true; // Don't print again
+        }
+        // --- END DEBUGGING ---
+
+
+        // Original code starts here:
+        JMathComponent component = new JMathComponent();
+        component.setBackground(Color.WHITE);
+        component.setFontSize(25); // Consider making this configurable
+        try { // Add try-catch around setContent as well, just in case
+           component.setContent(mathML);
+           this.addComponent(component, jOutputDoc.getLength(), false);
+        } catch (Throwable t) { // Catching Throwable captures Errors like NoClassDefFoundError too
+            System.err.println("\nERROR during JMathComponent setup or adding to pane:");
+            t.printStackTrace(System.err);
+            // Optionally, add a simple text message to the pane instead of crashing
+            printErr("Error rendering MathML. See console output.");
+        }
+
+    }
 
 	public void addOutputTextPane(OutputTextPane component) {
 		component.setBackground(Color.WHITE);
