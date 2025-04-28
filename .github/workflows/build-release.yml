@@ -2,18 +2,17 @@ name: Build and Package Windows Release
 
 on:
   push:
-    branches: [ master ] # Or your default branch
-  release:
-    types: [ created ] # Trigger when a new release is published
+    branches: [ master ] # Optional: Keep building on pushes to main (creates artifact only)
+    tags:
+      - 'v*'        # *** TRIGGER on tags starting with 'v' (e.g., v1.0, v1.0.2) ***
   workflow_dispatch: # Allows manual triggering
 
 jobs:
   build:
     runs-on: windows-latest
 
-    # Need write permissions to upload release assets
     permissions:
-      contents: write
+      contents: write # Needed to create/upload releases
 
     steps:
     - name: Checkout code
@@ -23,7 +22,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         java-version: '22'
-        distribution: 'temurin' # Or 'microsoft' if you prefer the one installed via winget
+        distribution: 'temurin'
 
     - name: Compile Java code
       shell: cmd
@@ -47,22 +46,37 @@ jobs:
     - name: Package application into ZIP
       shell: powershell
       run: |
-        Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, Example.ris, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath eSuite-v${{ github.ref_name || 'manual' }}.zip
-        echo "Created eSuite-v${{ github.ref_name || 'manual' }}.zip"
+        # Extract version from tag (e.g., refs/tags/v1.0.2 becomes v1.0.2)
+        # Use a fallback name for non-tag triggers
+        if ($env:GITHUB_REF -like 'refs/tags/v*') {
+          $version = $env:GITHUB_REF -replace 'refs/tags/', ''
+        } else {
+          $version = "dev-${{ github.run_number }}"
+        }
+        $assetName = "eSuite-${version}.zip"
+        Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, Example.ris, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath $assetName -Force
+        echo "ASSET_NAME=$assetName" >> $env:GITHUB_ENV # Share asset name with later steps
+        echo "Created $assetName"
 
-    # Upload artifact for pushes or manual runs for inspection
-    - name: Upload build artifact (for pushes/manual)
-      if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # Upload artifact for ALL runs (pushes, tags, manual) for inspection/testing
+    - name: Upload build artifact
       uses: actions/upload-artifact@v4
       with:
         name: eSuite-Windows-Package
-        path: eSuite-v${{ github.ref_name || 'manual' }}.zip
+        path: ${{ env.ASSET_NAME }}
 
-    # Upload asset to the release if triggered by a release event
-    - name: Upload Release Asset
-      if: github.event_name == 'release'
-      uses: softprops/action-gh-release@v1 # Popular action for release management
+    # *** Create/Update GitHub Release ONLY for tag pushes ***
+    - name: Create/Update GitHub Release
+      # Only run this step if the trigger was a tag push starting with 'v'
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@v1
       with:
-        files: eSuite-v${{ github.ref_name }}.zip
+        # tag_name: ${{ github.ref_name }} # Uses the tag that triggered the workflow
+        files: ${{ env.ASSET_NAME }} # The ZIP file created earlier
+        # You can add options like 'body', 'name', 'draft', 'prerelease' here
+        # Example: Create a draft release named after the tag
+        # name: "Release ${{ github.ref_name }}"
+        # draft: true
+        # prerelease: false
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use the default token
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Uses the default token provided by GitHub
