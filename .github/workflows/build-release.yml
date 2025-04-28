@@ -86,7 +86,8 @@ jobs:
         Copy-Item -Path 'icons\logo.png' -Destination 'choco-pkg-src\tools\'
         echo "Chocolatey package source prepared in choco-pkg-src"
 
-        - name: Build Chocolatey Package
+    - name: Build Chocolatey Package
+      # 'shell' and 'run' should be defined only ONCE at this level for the step
       shell: powershell
       run: |
         # --- Re-determine version within this step ---
@@ -136,7 +137,7 @@ jobs:
     - name: Upload build artifacts (ZIP and NUPKG)
       uses: actions/upload-artifact@v4
       with:
-        name: eSuite-Windows-Build-${{ env.VERSION }}
+        name: eSuite-Windows-Build-${{ env.VERSION }} # Use VERSION env var set in ZIP step
         path: |
           ${{ env.ASSET_NAME }}
           ${{ env.CHOCO_PKG_NAME }}
@@ -151,7 +152,7 @@ jobs:
           ${{ env.ASSET_NAME }}
           ${{ env.CHOCO_PKG_NAME }}
         # Optional: Set release title based on tag
-        name: "Engineering Suite ${{ env.VERSION }}"
+        name: "Engineering Suite ${{ env.VERSION }}" # Use VERSION env var set in ZIP step
         # Optional: Mark as draft or prerelease if desired
         # draft: false
         # prerelease: false
