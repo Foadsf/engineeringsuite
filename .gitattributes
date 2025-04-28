@@ -1,0 +1,23 @@
+# Set default behavior, in case users don't have core.autocrlf set.
+* text=auto
+
+# Explicitly declare text files you want to always have LF endings in the repo
+*.java text
+*.md text
+*.ris text
+*.txt text
+*.yml text
+*.nuspec text
+*.ps1 text
+
+# Declare files that will always have CRLF endings in the repo (Windows batch files)
+*.bat text eol=crlf
+
+# Declare known binary files to prevent Git messing with them
+*.jar binary
+*.zip binary
+*.7z binary
+*.png binary
+*.jpg binary
+*.ico binary
+# Add other binary types if necessary

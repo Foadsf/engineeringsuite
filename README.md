@@ -85,6 +85,28 @@ Verify your JDK installation by opening `cmd` and running `java -version` and `j
 - **Runtime Errors (`Could not find or load main class`, `NoClassDefFoundError`):** Usually a runtime classpath (`-cp`) issue. Double-check the `java` command, ensure `bin` and `Dependencies\*` are correct, and that you are running from the project root directory.
 - **Resource Errors (Cannot find `config.txt`, icons, etc.):** Ensure `.` is part of the runtime classpath and you are running from the project root directory.
 
+## Examples
+
+A collection of examples demonstrating various features can be found in the `/examples` directory:
+
+- `01_Introduction.ris`: Basic syntax, comments, built-in functions, simple thermo call.
+- `02_LinearSystem.ris`: Simple 2x2 linear system.
+- `03_NonLinearSystem.ris`: Non-linear system (circle/line) demonstrating need for initial values.
+- `04_Thermodynamics.ris`: Using a different property (Air Enthalpy) from the database.
+- `07_PlottingExamples.md`: Instructions for using the 2D plotting feature in the "eSuite Mathematics" tab.
+- **`08_HeatExchangerLMTD.ris`**: Solves a common counter-flow heat exchanger problem (non-linear).
+- **`09_ImplicitFrictionFactor.ris`**: Solves the implicit Colebrook equation for Darcy friction factor.
+- **`10_SymbolicAndNumerical.md`**: Demonstrates using the symbolic engine to find a derivative for use in the numerical solver.
+
+To run `.ris` examples:
+1. Start Engineering Suite.
+2. Go to File -> Open.
+3. Navigate to the `examples` folder and select the desired `.ris` file.
+4. Click the "Play" button (or press F3) to solve.
+5. Check the "Results" and "Log" tabs.
+
+For `.md` examples, follow the instructions within the file.
+
 ## License
 
 This project is licensed under the GNU Lesser GPL (see `lgpl.txt`).

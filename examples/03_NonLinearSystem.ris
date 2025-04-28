@@ -1,0 +1,12 @@
+/* Example 3: Non-Linear System (Circle and Line Intersection) */
+/* Solves for x=3, y=4 OR x=-4, y=-3 depending on initial guess. */
+/* Let's try finding the x=3, y=4 solution. */
+
+x^2 + y^2 = 25  /* Circle of radius 5 centered at origin */
+y = x + 1       /* Line */
+
+@$@%@EndOfEquationData@$@%@
+/* Initial guess near (3, 4) */
+x = 2
+y = 2
+@$@%@EndOfInitialVariableValueData@$@%@

@@ -74,22 +74,36 @@ class SaveLoad {
 				/* 2º Load Initial Values data method */
 				do {
 					s = b.readLine();
-					s = s.replace(" ", "");
-					if (!s.equals("@$@%@EndOfInitialVariableValueData@$@%@")) {
-						int k = s.indexOf((char) 61);// (char) 61 = equal sign
-						try {
-							Config.InitValue.add(new InitVal(
-									Double.parseDouble(s.substring(k + 1, s
-											.length())), s.substring(0, k)));
-						} catch (NumberFormatException e) {
-							e.printStackTrace();
-							Config.InitValue.add(new InitVal(
-									Config.DefaultInitialValue, s.substring(0,
-											k)));
-						}
+					if (s == null) break; // Handle end of file unexpectedly
+					s = s.trim(); // Remove leading/trailing whitespace
+					if (s.equals("@$@%@EndOfInitialVariableValueData@$@%@")) break; // Exit loop correctly
+					if (s.isEmpty() || s.startsWith("/*") || s.startsWith("/**")) continue; // Skip empty lines/comments
+
+					int k = s.indexOf('='); // Find the first '='
+					if (k <= 0 || k == s.length() - 1) { // Check if '=' is missing, at start, or at end
+					System.err.println("Skipping invalid initial value line: " + s);
+					continue; // Skip this line
 					}
 
-				} while ((!s.equals("@$@%@EndOfInitialVariableValueData@$@%@")));
+					try {
+						String varName = s.substring(0, k).trim(); // Get variable name
+						String varValueStr = s.substring(k + 1).trim(); // Get value part
+						if (varName.isEmpty() || varValueStr.isEmpty()) {
+							System.err.println("Skipping invalid initial value line (empty name or value): " + s);
+							continue;
+						}
+						// Replace comma with dot for Double parsing
+						varValueStr = varValueStr.replace(',', '.');
+						Config.InitValue.add(new InitVal(Double.parseDouble(varValueStr), varName));
+					} catch (NumberFormatException e) {
+						System.err.println("Could not parse number from initial value line: " + s + " - Error: " + e.getMessage());
+						// Optionally add with default value? Or just skip? Skipping for now.
+						// Config.InitValue.add(new InitVal(Config.DefaultInitialValue, s.substring(0, k).trim()));
+					} catch (Exception e) { // Catch other potential errors like StringIndexOutOfBounds
+						System.err.println("Error processing initial value line: " + s + " - Error: " + e.getMessage());
+					}
+
+				} while (true); // Loop will break on marker or EOF
 
 				b.close();
 				r.close();

@@ -1,0 +1,13 @@
+/* Example 4: Thermodynamic Property (Air Enthalpy) */
+/* Calculates the enthalpy of air at a given temperature. */
+
+/** Temperature (Input_T) in Kelvin */
+/** Enthalpy (Result_H) in kJ/kg */
+/** Function definition: Air.Enthalpy(Enthalpy, Temp) */
+
+Air.Enthalpy(Result_H, Input_T)
+
+Input_T = 600 /* Kelvin */
+
+@$@%@EndOfEquationData@$@%@
+@$@%@EndOfInitialVariableValueData@$@%@

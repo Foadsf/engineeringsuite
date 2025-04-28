@@ -47,57 +47,103 @@ public class SolverGUI {
 
 	public void Execute() {
 
-		// Erase the Log
-		Principal.createLog();
-		boolean error = false;
-		long tiempoInicio = System.currentTimeMillis();
-		try {
-			Principal.ResultArea.TextArea.setText("");
-			readJTextArea(false);
+	// Erase the Log
+	Principal.createLog();
+	boolean error = false; // Keep track of genuine parsing errors
+	long tiempoInicio = System.currentTimeMillis();
+	try {
+		Principal.ResultArea.TextArea.setText("");
+		readJTextArea(false); // Parses equations and variables. Sets Config.ErrorFound on real syntax errors.
 
-			if (CheckString.Functions.size() != CheckString.Var.getSize()
-					+ CheckString.OneEquationVar.size()) {
-				error = true;
-				if (!Config.ErrorFound)
-					PopUpWarning(Translation.Language.get(119));
-				Config.ErrorFound = true;
+		// --- Add Debugging Output ---
+		int equationCount = CheckString.Functions.size();
+		int initialVarCount = CheckString.Var.getSize();
+		int solvedOneVarCount = CheckString.OneEquationVar.size();
+		int totalVarCount = initialVarCount + solvedOneVarCount;
 
-			} else if (!error & !Config.ErrorFound) {
+		System.out.println("--- Solver Pre-Check ---");
+		System.out.println("Equations found: " + equationCount);
+		System.out.println("Initial unique variables found: " + initialVarCount);
+		System.out.println("Variables solved individually: " + solvedOneVarCount);
+		System.out.println("Total unique symbols treated as variables by parser: " + totalVarCount);
+		System.out.println("Initial check: Does " + equationCount + " == " + totalVarCount + "?");
+		// Print the list of variables the parser found initially
+		System.out.print("Parser variable list: [ ");
+		for (String2ME.VString v : CheckString.Var.Variables) {
+				System.out.print(v.getVar() + " ");
+		}
+			System.out.println("]");
+		// --- End Debugging Output ---
 
+		// --- Modify the Check ---
+		if (equationCount != totalVarCount) {
+			// Show the warning, but DO NOT stop execution based *only* on this mismatch
+			System.out.println("WARNING: Equation count differs from initial variable symbol count. Showing warning dialog.");
+			// Show GUI warning only if no prior *real* parsing error occurred
+			if (!Config.ErrorFound) {
+				PopUpWarning(Translation.Language.get(119));
+			}
+			// REMOVED: error = true; // Don't set error flag just for count mismatch
+			// REMOVED: Config.ErrorFound = true; // Don't set global error flag just for count mismatch
+			System.out.println("Proceeding to solver despite count mismatch...");
+
+		}
+
+		// --- Check for REAL errors found during parsing ---
+		if (Config.ErrorFound) {
+				// If a REAL error occurred during parsing (Config.ErrorFound was set in readJTextArea or checkGram), stop here.
+				System.out.println("ERROR: Halting execution due to prior parsing error (Config.ErrorFound=true).");
+				error = true; // Set local error flag to prevent final success message
+		} else {
+				// --- Solver Execution Block (Only runs if no REAL parsing errors occurred) ---
+				System.out.println("Starting solver process...");
 				/* Try to solve functions that now have one variable */
 				PrepareMatrix.PreTarjan();
 				/*
-				 * Now call tarjan to order the system of equations, and call
-				 * the proper solver
-				 */
+				* Now call tarjan to order the system of equations, and call
+				* the proper solver
+				*/
 				PrepareMatrix DF = new PrepareMatrix();
 				DF.PreNewton();
-
-				/*-----PopUpWindow------*/
-				long totalTiempo = System.currentTimeMillis() - tiempoInicio;
-
-				if ((!error) & !Config.ErrorFound
-						& !evaluation.DiffAndEvaluator.TimeLimitExceeded)
-					JOptionPane.showMessageDialog(null, Translation.Language
-							.get(120)
-							+ totalTiempo + " ms", Translation.Language
-							.get(121), JOptionPane.OK_OPTION, new ImageIcon(
-							Config.AbsolutePath
-									+ "icons/dialog-information.png"));
-
-			}
-
-		} catch (RuntimeException re) {
-			if (evaluation.DiffAndEvaluator.TimeLimitExceeded)
-				SolverGUI.PopUpWarning(Translation.Language.get(122));
-			error = true;
-		} catch (Exception e) {
-			PopUpError("Unexpected error");
-
-			error = true;
+				System.out.println("Solver process finished.");
+				// --- End Solver Execution Block ---
 		}
 
+		/*-----PopUpWindow------*/
+		long totalTiempo = System.currentTimeMillis() - tiempoInicio;
+
+		// Show success only if no parsing error AND no solver runtime error occurred
+		if ((!error) && !Config.ErrorFound
+				&& !evaluation.DiffAndEvaluator.TimeLimitExceeded) {
+			JOptionPane.showMessageDialog(null, Translation.Language
+					.get(120)
+					+ totalTiempo + " ms", Translation.Language
+					.get(121), JOptionPane.OK_OPTION, new ImageIcon(
+					Config.AbsolutePath
+							+ "icons/dialog-information.png"));
+		}
+
+	} catch (RuntimeException re) {
+		// Catch runtime errors during solving (like DivisionByZero caught lower down)
+		if (evaluation.DiffAndEvaluator.TimeLimitExceeded) {
+			SolverGUI.PopUpWarning(Translation.Language.get(122));
+		} else {
+				// Print stack trace for unexpected runtime errors during solving
+				re.printStackTrace();
+				// Optionally show a generic error popup
+				// PopUpError("A runtime error occurred during solving. Check console output.");
+		}
+		error = true; // Mark as error occurred
+		Config.ErrorFound = true; // Set global flag for subsequent checks
+	} catch (Exception e) {
+			// Catch other exceptions (like potential file IO errors in readJTextArea though less likely)
+			PopUpError("Unexpected error: " + e.getMessage());
+			e.printStackTrace();
+			error = true; // Mark as error occurred
+			Config.ErrorFound = true; // Set global flag
 	}
+
+} // End of Execute method
 
 	/**
 	 * A method to read from a jText the equations This method read the equation

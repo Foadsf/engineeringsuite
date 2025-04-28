@@ -1,0 +1,39 @@
+/* Example 8: Counter-Flow Heat Exchanger Analysis */
+/* Calculates the cold fluid outlet temperature and heat transfer rate */
+/* Units must be consistent (e.g., kW, kg/s, kJ/kg-K, K, kW/K) */
+
+/** Hot Fluid Properties **/
+m_dot_h = 0.5      /* Hot fluid mass flow rate (kg/s) */
+Cp_h = 2.0         /* Hot fluid specific heat (kJ/kg-K) */
+T_in_h = 373.15    /* Hot fluid inlet temperature (K, e.g., 100 C) */
+
+/** Cold Fluid Properties **/
+m_dot_c = 0.8      /* Cold fluid mass flow rate (kg/s) */
+Cp_c = 4.18        /* Cold fluid specific heat (kJ/kg-K) */
+T_in_c = 293.15    /* Cold fluid inlet temperature (K, e.g., 20 C) */
+
+/** Heat Exchanger Property **/
+UA = 1.5           /* Overall heat transfer coefficient * Area (kW/K) */
+
+/** Energy Balances **/
+Q = m_dot_h * Cp_h * (T_in_h - T_out_h) /* Heat transfer rate (kW) */
+Q = m_dot_c * Cp_c * (T_out_c - T_in_c) /* Heat transfer rate (kW) */
+
+/** LMTD Calculation for Counter-Flow **/
+DeltaT1 = T_in_h - T_out_c
+DeltaT2 = T_out_h - T_in_c
+/* Avoid division by zero: Use approximation if DeltaT1 is very close to DeltaT2 */
+/* Or rely on solver - but good initial guesses help */
+LMTD = (DeltaT1 - DeltaT2) / Log[DeltaT1 / DeltaT2]
+
+/** Heat Transfer Rate using LMTD **/
+Q = UA * LMTD
+
+@$@%@EndOfEquationData@$@%@
+T_out_h = 350
+T_out_c = 310
+Q = 10
+DeltaT1 = 60
+DeltaT2 = 50
+LMTD = 55
+@$@%@EndOfInitialVariableValueData@$@%@
