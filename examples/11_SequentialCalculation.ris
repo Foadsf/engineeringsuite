@@ -1,0 +1,22 @@
+/* Example 11: Sequential Calculation Demonstration */
+/* This system can be decomposed into two smaller systems. */
+/* System 1: Solves for x and y */
+/* System 2: Solves for a and b, using the value of x */
+
+/** System 2 Equations **/
+a = x^2          /* 'a' depends on 'x' from System 1 */
+a / b = 4        /* Solves for 'b' once 'a' is known */
+
+/** System 1 Equations **/
+x * y = 12
+x + y = 7
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses - Needed for the non-linear x,y system */
+x = 1
+y = 1
+/* Guesses for a, b aren't strictly necessary as they are solved sequentially */
+/* but can sometimes help overall stability */
+a = 10
+b = 2
+@$@%@EndOfInitialVariableValueData@$@%@

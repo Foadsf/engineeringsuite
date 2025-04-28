@@ -1,0 +1,38 @@
+/* Example 12: Simple Chemical Equilibrium A <=> B + C */
+/* Calculates extent of reaction (xi) and Kp */
+
+/** Inputs **/
+nA0 = 1.0   /* Initial moles of A */
+P = 2.0     /* Total pressure (atm, ensure R is consistent) */
+T = 500     /* Temperature (K) */
+R = 8.314   /* Ideal gas constant (J/mol-K) */
+DeltaG0 = -5000 /* Standard Gibbs energy change of reaction (J/mol) at T */
+                /* Negative value favors products */
+
+/** Mole Balances based on extent of reaction xi **/
+nA = nA0 - xi  /* Moles of A at equilibrium */
+nB = xi        /* Moles of B at equilibrium */
+nC = xi        /* Moles of C at equilibrium */
+nT = nA0 + xi  /* Total moles at equilibrium */
+
+/** Mole Fractions **/
+yA = nA / nT
+yB = nB / nT
+yC = nC / nT
+
+/** Equilibrium Constant Definition (Partial Pressures) **/
+/* Kp = (pB * pC) / pA = (yB*P * yC*P) / (yA*P) = (yB*yC/yA) * P */
+/* Substitute mole fractions in terms of xi */
+/* Kp = ( (xi/nT) * (xi/nT) / ((nA0-xi)/nT) ) * P */
+/* Kp = ( xi^2 / ( (nA0-xi) * nT ) ) * P */
+/* Kp = ( xi^2 * P ) / ( (nA0-xi) * (nA0+xi) ) */
+Kp = (xi^2 * P) / (nA0^2 - xi^2)
+
+/** Relation between Kp and DeltaG0 **/
+/* DeltaG0 = -R * T * Ln[Kp] (Using Log for natural log) */
+DeltaG0 = -R * T * Log[Kp]
+
+@$@%@EndOfEquationData@$@%@
+xi = 0.1
+Kp = 1.5
+@$@%@EndOfInitialVariableValueData@$@%@
