@@ -86,7 +86,9 @@ jobs:
         Copy-Item -Path 'icons\logo.png' -Destination 'choco-pkg-src\tools\'
         echo "Chocolatey package source prepared in choco-pkg-src"
 
-        - name: Build Chocolatey Package
+    # This step builds the Chocolatey package
+    - name: Build Chocolatey Package
+      # 'shell' and 'run' are defined only ONCE here for the entire step
       shell: powershell
       run: |
         # --- Determine the version specified IN the nuspec file ---
