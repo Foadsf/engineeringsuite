@@ -32,8 +32,7 @@ import String2ME.PositionStorer;
 import String2ME.VString;
 
 /**
- * This class is to store the commands that eSuite solver needs to work
- * properly.
+ * This class is to store the commands that eSuite solver needs to work properly.
  * 
  * @author Pablo Salinas
  * 
@@ -47,108 +46,106 @@ public class SolverGUI {
 
 	public void Execute() {
 
-	// Erase the Log
-	Principal.createLog();
-	boolean error = false; // Keep track of genuine parsing errors
-	long tiempoInicio = System.currentTimeMillis();
-	try {
-		Principal.ResultArea.TextArea.setText("");
-		readJTextArea(false); // Parses equations and variables. Sets Config.ErrorFound on real syntax errors.
+		// Erase the Log
+		Principal.createLog();
+		boolean error = false; // Keep track of genuine parsing errors
+		long tiempoInicio = System.currentTimeMillis();
+		try {
+			Principal.ResultArea.TextArea.setText("");
+			readJTextArea(false); // Parses equations and variables. Sets Config.ErrorFound on real syntax
+														// errors.
 
-		// --- Add Debugging Output ---
-		int equationCount = CheckString.Functions.size();
-		int initialVarCount = CheckString.Var.getSize();
-		int solvedOneVarCount = CheckString.OneEquationVar.size();
-		int totalVarCount = initialVarCount + solvedOneVarCount;
+			// --- Add Debugging Output ---
+			int equationCount = CheckString.Functions.size();
+			int initialVarCount = CheckString.Var.getSize();
+			int solvedOneVarCount = CheckString.OneEquationVar.size();
+			int totalVarCount = initialVarCount + solvedOneVarCount;
 
-		System.out.println("--- Solver Pre-Check ---");
-		System.out.println("Equations found: " + equationCount);
-		System.out.println("Initial unique variables found: " + initialVarCount);
-		System.out.println("Variables solved individually: " + solvedOneVarCount);
-		System.out.println("Total unique symbols treated as variables by parser: " + totalVarCount);
-		System.out.println("Initial check: Does " + equationCount + " == " + totalVarCount + "?");
-		// Print the list of variables the parser found initially
-		System.out.print("Parser variable list: [ ");
-		for (String2ME.VString v : CheckString.Var.Variables) {
+			System.out.println("--- Solver Pre-Check ---");
+			System.out.println("Equations found: " + equationCount);
+			System.out.println("Initial unique variables found: " + initialVarCount);
+			System.out.println("Variables solved individually: " + solvedOneVarCount);
+			System.out.println("Total unique symbols treated as variables by parser: " + totalVarCount);
+			System.out.println("Initial check: Does " + equationCount + " == " + totalVarCount + "?");
+			// Print the list of variables the parser found initially
+			System.out.print("Parser variable list: [ ");
+			for (String2ME.VString v : CheckString.Var.Variables) {
 				System.out.print(v.getVar() + " ");
-		}
-			System.out.println("]");
-		// --- End Debugging Output ---
-
-		// --- Modify the Check ---
-		if (equationCount != totalVarCount) {
-			// Show the warning, but DO NOT stop execution based *only* on this mismatch
-			System.out.println("WARNING: Equation count differs from initial variable symbol count. Showing warning dialog.");
-			// Show GUI warning only if no prior *real* parsing error occurred
-			if (!Config.ErrorFound) {
-				PopUpWarning(Translation.Language.get(119));
 			}
-			// REMOVED: error = true; // Don't set error flag just for count mismatch
-			// REMOVED: Config.ErrorFound = true; // Don't set global error flag just for count mismatch
-			System.out.println("Proceeding to solver despite count mismatch...");
+			System.out.println("]");
+			// --- End Debugging Output ---
 
-		}
+			// --- Modify the Check ---
+			if (equationCount != totalVarCount) {
+				// Show the warning, but DO NOT stop execution based *only* on this mismatch
+				System.out.println(
+						"WARNING: Equation count differs from initial variable symbol count. Showing warning dialog.");
+				// Show GUI warning only if no prior *real* parsing error occurred
+				if (!Config.ErrorFound) {
+					PopUpWarning(Translation.Language.get(119));
+				}
+				// REMOVED: error = true; // Don't set error flag just for count mismatch
+				// REMOVED: Config.ErrorFound = true; // Don't set global error flag just for count mismatch
+				System.out.println("Proceeding to solver despite count mismatch...");
 
-		// --- Check for REAL errors found during parsing ---
-		if (Config.ErrorFound) {
-				// If a REAL error occurred during parsing (Config.ErrorFound was set in readJTextArea or checkGram), stop here.
-				System.out.println("ERROR: Halting execution due to prior parsing error (Config.ErrorFound=true).");
+			}
+
+			// --- Check for REAL errors found during parsing ---
+			if (Config.ErrorFound) {
+				// If a REAL error occurred during parsing (Config.ErrorFound was set in readJTextArea or
+				// checkGram), stop here.
+				System.out.println(
+						"ERROR: Halting execution due to prior parsing error (Config.ErrorFound=true).");
 				error = true; // Set local error flag to prevent final success message
-		} else {
+			} else {
 				// --- Solver Execution Block (Only runs if no REAL parsing errors occurred) ---
 				System.out.println("Starting solver process...");
 				/* Try to solve functions that now have one variable */
 				PrepareMatrix.PreTarjan();
 				/*
-				* Now call tarjan to order the system of equations, and call
-				* the proper solver
-				*/
+				 * Now call tarjan to order the system of equations, and call the proper solver
+				 */
 				PrepareMatrix DF = new PrepareMatrix();
 				DF.PreNewton();
 				System.out.println("Solver process finished.");
 				// --- End Solver Execution Block ---
-		}
+			}
 
-		/*-----PopUpWindow------*/
-		long totalTiempo = System.currentTimeMillis() - tiempoInicio;
+			/*-----PopUpWindow------*/
+			long totalTiempo = System.currentTimeMillis() - tiempoInicio;
 
-		// Show success only if no parsing error AND no solver runtime error occurred
-		if ((!error) && !Config.ErrorFound
-				&& !evaluation.DiffAndEvaluator.TimeLimitExceeded) {
-			JOptionPane.showMessageDialog(null, Translation.Language
-					.get(120)
-					+ totalTiempo + " ms", Translation.Language
-					.get(121), JOptionPane.OK_OPTION, new ImageIcon(
-					Config.AbsolutePath
-							+ "icons/dialog-information.png"));
-		}
+			// Show success only if no parsing error AND no solver runtime error occurred
+			if ((!error) && !Config.ErrorFound && !evaluation.DiffAndEvaluator.TimeLimitExceeded) {
+				JOptionPane.showMessageDialog(null, Translation.Language.get(120) + totalTiempo + " ms",
+						Translation.Language.get(121), JOptionPane.OK_OPTION,
+						new ImageIcon(Config.AbsolutePath + "icons/dialog-information.png"));
+			}
 
-	} catch (RuntimeException re) {
-		// Catch runtime errors during solving (like DivisionByZero caught lower down)
-		if (evaluation.DiffAndEvaluator.TimeLimitExceeded) {
-			SolverGUI.PopUpWarning(Translation.Language.get(122));
-		} else {
+		} catch (RuntimeException re) {
+			// Catch runtime errors during solving (like DivisionByZero caught lower down)
+			if (evaluation.DiffAndEvaluator.TimeLimitExceeded) {
+				SolverGUI.PopUpWarning(Translation.Language.get(122));
+			} else {
 				// Print stack trace for unexpected runtime errors during solving
 				re.printStackTrace();
 				// Optionally show a generic error popup
 				// PopUpError("A runtime error occurred during solving. Check console output.");
-		}
-		error = true; // Mark as error occurred
-		Config.ErrorFound = true; // Set global flag for subsequent checks
-	} catch (Exception e) {
+			}
+			error = true; // Mark as error occurred
+			Config.ErrorFound = true; // Set global flag for subsequent checks
+		} catch (Exception e) {
 			// Catch other exceptions (like potential file IO errors in readJTextArea though less likely)
 			PopUpError("Unexpected error: " + e.getMessage());
 			e.printStackTrace();
 			error = true; // Mark as error occurred
 			Config.ErrorFound = true; // Set global flag
-	}
+		}
 
-} // End of Execute method
+	} // End of Execute method
 
 	/**
-	 * A method to read from a jText the equations This method read the equation
-	 * and then calls CheckString It will stop the evaluation if something wrong
-	 * is found, i.e:Syntaxes errors
+	 * A method to read from a jText the equations This method read the equation and then calls
+	 * CheckString It will stop the evaluation if something wrong is found, i.e:Syntaxes errors
 	 * 
 	 * @deprecated
 	 * @throws Exception
@@ -158,8 +155,7 @@ public class SolverGUI {
 		GramErr aux2 = new GramErr((byte) 0);
 		CheckString aux = new CheckString();
 		String s = new String("");
-		StringReader J = new StringReader(
-				cleanComments(Principal.TextArea.TextArea.getText()));
+		StringReader J = new StringReader(cleanComments(Principal.TextArea.TextArea.getText()));
 		BufferedReader BufJ = new BufferedReader(J);
 		for (int i = 0; i < Principal.TextArea.TextArea.getLineCount(); i++) {
 			s = BufJ.readLine();
@@ -179,9 +175,8 @@ public class SolverGUI {
 	}
 
 	/**
-	 * A method to read from a jText the equations This method read the equation
-	 * and then calls CheckString It will stop the evaluation if something wrong
-	 * is founded, i.e:Syntaxes errors
+	 * A method to read from a jText the equations This method read the equation and then calls
+	 * CheckString It will stop the evaluation if something wrong is founded, i.e:Syntaxes errors
 	 * 
 	 * @throws Exception
 	 */
@@ -191,8 +186,7 @@ public class SolverGUI {
 		CheckString aux = new CheckString();
 		String s = new String("");
 		String error = new String("");
-		StringReader J = new StringReader(
-				cleanComments(Principal.TextArea.TextArea.getText()));
+		StringReader J = new StringReader(cleanComments(Principal.TextArea.TextArea.getText()));
 		BufferedReader BufJ = new BufferedReader(J);
 		// Get the information of the materials
 		MaterialMethods Materiales = new MaterialMethods();
@@ -206,7 +200,7 @@ public class SolverGUI {
 				s = s.replace(CheckString.Tab, CheckString.Espacio);
 				s = s.replace(" ", "");
 				if (!Render)// Search for Functions to change them for the
-							// formula
+					// formula
 					aux3 = searchThermodynamicFunction(s, Materiales, aux);
 				else
 					// Search for Functions to change them for a function to
@@ -230,8 +224,7 @@ public class SolverGUI {
 						// character
 						if (aux2.GetTypeError() == (byte) 1) {
 							Principal.TextArea.TextArea.setCaretPosition(0);
-							Principal.TextArea.Search(Character.toString(aux2
-									.GetCaracter()));
+							Principal.TextArea.Search(Character.toString(aux2.GetCaracter()));
 						} else
 							showError(error);
 						break;
@@ -239,8 +232,7 @@ public class SolverGUI {
 					}
 				} else {
 					Config.ErrorFound = true;
-					SolverGUI.PopUpError(Translation.Language.get(365)
-							+ Config.JumpLine + "<" + s + ">");
+					SolverGUI.PopUpError(Translation.Language.get(365) + Config.JumpLine + "<" + s + ">");
 					// Search the error in the text area
 					showError(error);
 					break;
@@ -257,13 +249,11 @@ public class SolverGUI {
 	}
 
 	/**
-	 * Reads the variables from the equation text area and stores them in
-	 * CheckString.CaseVariables
+	 * Reads the variables from the equation text area and stores them in CheckString.CaseVariables
 	 */
 	public void readVariables() {
 		CheckString aux = new CheckString();
-		StringReader J = new StringReader(
-				cleanComments(Principal.TextArea.TextArea.getText()));
+		StringReader J = new StringReader(cleanComments(Principal.TextArea.TextArea.getText()));
 		String s = new String("");
 		BufferedReader BufJ = new BufferedReader(J);
 		// Get the information of the materials
@@ -284,21 +274,16 @@ public class SolverGUI {
 	}
 
 	/**
-	 * Set the font and color for all token types.Also it enables the
-	 * antialiasing and the icons.
+	 * Set the font and color for all token types.Also it enables the antialiasing and the icons.
 	 * 
-	 * @param textArea
-	 *            The text area to modify.
-	 * @param font
-	 *            The font to use.
+	 * @param textArea The text area to modify.
+	 * @param font The font to use.
 	 */
 	@SuppressWarnings("static-access")
-	public void PrepareSyntaxText(RSyntaxTextArea textArea, Font font,
-			boolean editable) {
+	public void PrepareSyntaxText(RSyntaxTextArea textArea, Font font, boolean editable) {
 		textArea.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
 		// Icons for the popup window (cut, copy, paste...)
-		IconGroup group = new IconGroup("group",
-				Config.AbsolutePath + "icons/", null, "png");
+		IconGroup group = new IconGroup("group", Config.AbsolutePath + "icons/", null, "png");
 		textArea.setIconGroup(group);
 		textArea.setTextAntiAliasHint("VALUE_TEXT_ANTIALIAS_ON");
 		if (font != null) {
@@ -316,17 +301,16 @@ public class SolverGUI {
 		if (editable)
 			scheme.styles[Token.LITERAL_STRING_DOUBLE_QUOTE].foreground = Color.black;// " "
 		else {
-			textArea.setFont(new Font(Font.MONOSPACED, font.PLAIN, font
-					.getSize()));
-			scheme.styles[Token.LITERAL_STRING_DOUBLE_QUOTE].font = new Font(
-					Font.SANS_SERIF, font.BOLD, 16);// " "
+			textArea.setFont(new Font(Font.MONOSPACED, font.PLAIN, font.getSize()));
+			scheme.styles[Token.LITERAL_STRING_DOUBLE_QUOTE].font =
+					new Font(Font.SANS_SERIF, font.BOLD, 16);// " "
 			scheme.styles[Token.LITERAL_STRING_DOUBLE_QUOTE].foreground = Color.red;
 		}
 		scheme.styles[Token.FUNCTION].foreground = Color.black;// long, math,
-																// double...
+		// double...
 		scheme.styles[Token.DATA_TYPE].foreground = Color.black;// int, char...
 		scheme.styles[Token.RESERVED_WORD].foreground = Color.black;// While,
-																	// for...
+		// for...
 		scheme.styles[Token.VARIABLE].foreground = Color.black;
 		scheme.styles[Token.COMMENT_EOL].foreground = Color.black;// -> //
 		scheme.styles[Token.ERROR_CHAR].foreground = Color.black;
@@ -335,7 +319,7 @@ public class SolverGUI {
 		scheme.styles[Token.ERROR_STRING_DOUBLE].foreground = Color.black;
 		scheme.styles[Token.IDENTIFIER].foreground = Color.black;
 		scheme.styles[Token.LITERAL_BOOLEAN].foreground = Color.black;// true,
-																		// false
+		// false
 		scheme.styles[Token.LITERAL_CHAR].foreground = Color.black;
 		scheme.styles[Token.LITERAL_NUMBER_DECIMAL_INT].foreground = Color.blue;
 		scheme.styles[Token.LITERAL_NUMBER_FLOAT].foreground = Color.blue;
@@ -355,8 +339,7 @@ public class SolverGUI {
 	 * @param RenderPane
 	 * @param TextArea
 	 */
-	public void RenderEquations(OutputTextPane RenderPane,
-			RSyntaxTextArea TextArea) {
+	public void RenderEquations(OutputTextPane RenderPane, RSyntaxTextArea TextArea) {
 
 		long tiempoInicio = System.currentTimeMillis();
 		// At first i read the equations and clean the output Pane
@@ -386,8 +369,7 @@ public class SolverGUI {
 			Eqaux = it.next();
 			aux = Eqaux.getEquation();
 			i = findEqual(aux);
-			aux2 = aux.substring(0, i - 3) + "="
-					+ aux.substring(i + 1, aux.length() - 1);
+			aux2 = aux.substring(0, i - 3) + "=" + aux.substring(i + 1, aux.length() - 1);
 			aux2 = aux2.replace("Degree", "");
 			aux2 = aux2.replace("Gg", "_");
 			aux2 = aux2.replace("3.141592653589793", "Pi");
@@ -428,19 +410,18 @@ public class SolverGUI {
 		}
 		RenderPane.setCaretPosition(0);
 		long totalTiempo = System.currentTimeMillis() - tiempoInicio;
-		JOptionPane.showMessageDialog(null, "Time elapsed: " + totalTiempo
-				+ " ms", "Operations finished", JOptionPane.OK_OPTION,
+		JOptionPane.showMessageDialog(null, "Time elapsed: " + totalTiempo + " ms",
+				"Operations finished", JOptionPane.OK_OPTION,
 				new ImageIcon("icons/dialog-information.png"));
 
 	}
 
 	/**
-	 * Translate the functions to equations; The equations are stored like this
-	 * x-1*(2) and i want them like this x=2
+	 * Translate the functions to equations; The equations are stored like this x-1*(2) and i want
+	 * them like this x=2
 	 * 
 	 * @param s
-	 * @return the position of the ( that substitute =; in the example position
-	 *         4
+	 * @return the position of the ( that substitute =; in the example position 4
 	 */
 	private int findEqual(String s) {
 		/*
@@ -453,7 +434,7 @@ public class SolverGUI {
 		// Stack is a First in last out implementation
 		ArrayList<Byte> stack = new ArrayList<Byte>();
 		int i = s.length() - 1;// i don't want to read the latest character i
-								// already know that is a )
+		// already know that is a )
 
 		stack.add((byte) 0);// the first parenthesis
 		Character c;
@@ -476,8 +457,7 @@ public class SolverGUI {
 	}
 
 	/**
-	 * This will show a JOptionPane.Message dialog with the input string and an
-	 * error icon
+	 * This will show a JOptionPane.Message dialog with the input string and an error icon
 	 * 
 	 * @param msg
 	 */
@@ -489,15 +469,13 @@ public class SolverGUI {
 	}
 
 	/**
-	 * This will show a JOptionPane.Message dialog with the input string and a
-	 * warning icon
+	 * This will show a JOptionPane.Message dialog with the input string and a warning icon
 	 * 
 	 * @param msg
 	 */
 	public static void PopUpWarning(String msg) {
-		JOptionPane.showMessageDialog(null, msg, "Warning",
-				JOptionPane.OK_OPTION, new ImageIcon(Config.AbsolutePath
-						+ "icons/dialog-warning.png"));
+		JOptionPane.showMessageDialog(null, msg, "Warning", JOptionPane.OK_OPTION,
+				new ImageIcon(Config.AbsolutePath + "icons/dialog-warning.png"));
 	}
 
 	/**
@@ -526,8 +504,7 @@ public class SolverGUI {
 	 */
 	public void printResiduals() {
 		// Prepare the WorkAround
-		Iterator<PositionStorer> WA = CheckString.ResidualWorkAround
-				.listIterator();
+		Iterator<PositionStorer> WA = CheckString.ResidualWorkAround.listIterator();
 		PositionStorer PS = new PositionStorer("", "");
 		if (WA.hasNext())
 			PS = WA.next();
@@ -536,8 +513,8 @@ public class SolverGUI {
 		CheckString.FunctionsSolved.addAll(CheckString.Functions);
 		Iterator<EqStorer> it = CheckString.FunctionsSolved.listIterator();
 		Principal.LogArea.TextArea.append(Config.JumpLine + Config.JumpLine);
-		Principal.LogArea.TextArea.append(Translation.Language.get(133)
-				+ Config.JumpLine + Config.JumpLine);
+		Principal.LogArea.TextArea
+				.append(Translation.Language.get(133) + Config.JumpLine + Config.JumpLine);
 		String aux;
 		String aux2 = new String("");
 		String aux3 = new String("");
@@ -551,16 +528,14 @@ public class SolverGUI {
 			Eqaux = it.next();
 			aux = Eqaux.getEquation();
 			i = findEqual(aux);
-			aux2 = aux.substring(0, i - 3) + "="
-					+ aux.substring(i + 1, aux.length() - 1);
+			aux2 = aux.substring(0, i - 3) + "=" + aux.substring(i + 1, aux.length() - 1);
 			aux2 = aux2.replace("Degree", "");
 			aux2 = aux2.replace("Gg", "_");
 			aux2 = aux2.replace("3.141592653589793", "Pi");
 
 			// This is to change the variables with no case information to the
 			// CaseVariables
-			StringTokenizer lector = new StringTokenizer(aux2,
-					"+/*-()[]{} ^=!", false);
+			StringTokenizer lector = new StringTokenizer(aux2, "+/*-()[]{} ^=!", false);
 			while (lector.hasMoreTokens()) {
 				aux3 = lector.nextToken();
 				if (!Ch.IsNumber(aux3) & !Ch.IsFunction(aux3))
@@ -611,8 +586,8 @@ public class SolverGUI {
 	}
 
 	/**
-	 * Prints the solutions in the results area and if Config.RememberValues =
-	 * true then stores the calculated values as initial values
+	 * Prints the solutions in the results area and if Config.RememberValues = true then stores the
+	 * calculated values as initial values
 	 */
 	public void printResults() {
 
@@ -630,8 +605,7 @@ public class SolverGUI {
 		String VaR;
 
 		// This is to store last calculated values as initial values
-		if (Config.RemeberLastValues & !DiffAndEvaluator.TimeLimitExceeded
-				& !Config.ErrorFound)
+		if (Config.RemeberLastValues & !DiffAndEvaluator.TimeLimitExceeded & !Config.ErrorFound)
 			Config.InitValue.clear();
 
 		// Print results
@@ -655,18 +629,18 @@ public class SolverGUI {
 			col += resultado.length();
 			n++;
 			switch (n) {
-			case 1:
-				aux = pos;
-				break;
-			case 2:
-				aux = pos * 2;
-				break;
-			case 3:
-				aux = pos * 3;
-				break;
-			default:
-				aux = 0;
-				break;
+				case 1:
+					aux = pos;
+					break;
+				case 2:
+					aux = pos * 2;
+					break;
+				case 3:
+					aux = pos * 3;
+					break;
+				default:
+					aux = 0;
+					break;
 			}
 
 			while (col < aux) {
@@ -682,8 +656,7 @@ public class SolverGUI {
 			}
 
 			// If Save calculated values
-			if (Config.RemeberLastValues & !DiffAndEvaluator.TimeLimitExceeded
-					& !Config.ErrorFound)
+			if (Config.RemeberLastValues & !DiffAndEvaluator.TimeLimitExceeded & !Config.ErrorFound)
 				Config.InitValue.add(new String2ME.InitVal(result, VaR));
 
 		}
@@ -713,10 +686,9 @@ public class SolverGUI {
 	protected static int LastWindowFocused = 0;
 
 	/**
-	 * @return an Integer representing which text area is focused; 1 = textarea;
-	 *         2 = Render area; 3 = LogArea; 4 = Result Area; 5 = Mathematics
-	 *         input; 6 mathematics console; 7 = jSearch of text area; 8 =
-	 *         jSearch of log area; 9 = jSearch of result area
+	 * @return an Integer representing which text area is focused; 1 = textarea; 2 = Render area; 3 =
+	 *         LogArea; 4 = Result Area; 5 = Mathematics input; 6 mathematics console; 7 = jSearch of
+	 *         text area; 8 = jSearch of log area; 9 = jSearch of result area
 	 */
 	protected static int windowFocused() {
 		int retorno = 0;
@@ -755,8 +727,8 @@ public class SolverGUI {
 	 * @param copy
 	 * @param paste
 	 */
-	public static void setMenustatus(boolean redo, boolean undo, boolean cut,
-			boolean copy, boolean paste) {
+	public static void setMenustatus(boolean redo, boolean undo, boolean cut, boolean copy,
+			boolean paste) {
 		Principal.mainmenu.jUndo.setEnabled(undo);
 		Principal.mainmenu.jRedo.setEnabled(redo);
 		Principal.mainmenu.jPaste.setEnabled(paste);
@@ -783,7 +755,7 @@ public class SolverGUI {
 		for (int i = 0; i < input.length(); i++) {
 
 			try {// this is only to introduce line-separators while ignoring
-					// comments
+						// comments
 				if (count == line)
 					s = BufJ.readLine();
 				if (s != null) {
@@ -808,9 +780,8 @@ public class SolverGUI {
 			if (comments) {
 				if (count == line)
 					if (pc == CheckString.Por & c == CheckString.Slash) {/*
-																		 * Do
-																		 * nothing
-																		 */
+																																 * Do nothing
+																																 */
 					} else
 						aux += Config.JumpLine;
 
@@ -839,59 +810,51 @@ public class SolverGUI {
 		/* If there is any kind of error a pop up window will be shown */
 		if (!Config.ErrorFound)// Just one error, every time
 			switch (aux2.GetTypeError()) {
-			// Maybe i should show the matheclipse error if the error is
-			// different
-			case 0:
-				break;// There are no errors
-			case 1:
-				PopUpWarning(Translation.Language.get(123) + aux2.GetCaracter()
-						+ ">");
-				Config.ErrorFound = true;
-				break;
-			case 2:
-				PopUpWarning(Translation.Language.get(125) + aux2.GetCaracter()
-						+ ">");
-				Config.ErrorFound = true;
-				break;
-			case 3:
-				PopUpWarning(Translation.Language.get(126) + aux2.GetCaracter()
-						+ ">");
-				Config.ErrorFound = true;
-				break;
-			case 4:
-				PopUpWarning(Translation.Language.get(127) + aux2.GetCaracter()
-						+ ">");
-				Config.ErrorFound = true;
-				break;
-			case 5:
-				PopUpWarning(Translation.Language.get(128));
-				Config.ErrorFound = true;
-				break;
-			case 6:
-				PopUpWarning(Translation.Language.get(129));
-				Config.ErrorFound = true;
-				break;
-			case 7:
-				PopUpWarning(Translation.Language.get(130));
-				Config.ErrorFound = true;
-				break;
-			case 8:
-				PopUpWarning(Translation.Language.get(131) + ". "
-						+ Translation.Language.get(195) + "<"
-						+ aux2.getString() + ">" + Config.JumpLine
-						+ Translation.Language.get(132));
-				Config.ErrorFound = true;
-				break;
-			case 9:
-				PopUpWarning(Translation.Language.get(196) + aux2.GetCaracter()
-						+ ">");
-				Config.ErrorFound = true;
-				break;
-			case 10:
-				PopUpWarning(Translation.Language.get(127) + aux2.getString()
-						+ ">");
-				Config.ErrorFound = true;
-				break;
+				// Maybe i should show the matheclipse error if the error is
+				// different
+				case 0:
+					break;// There are no errors
+				case 1:
+					PopUpWarning(Translation.Language.get(123) + aux2.GetCaracter() + ">");
+					Config.ErrorFound = true;
+					break;
+				case 2:
+					PopUpWarning(Translation.Language.get(125) + aux2.GetCaracter() + ">");
+					Config.ErrorFound = true;
+					break;
+				case 3:
+					PopUpWarning(Translation.Language.get(126) + aux2.GetCaracter() + ">");
+					Config.ErrorFound = true;
+					break;
+				case 4:
+					PopUpWarning(Translation.Language.get(127) + aux2.GetCaracter() + ">");
+					Config.ErrorFound = true;
+					break;
+				case 5:
+					PopUpWarning(Translation.Language.get(128));
+					Config.ErrorFound = true;
+					break;
+				case 6:
+					PopUpWarning(Translation.Language.get(129));
+					Config.ErrorFound = true;
+					break;
+				case 7:
+					PopUpWarning(Translation.Language.get(130));
+					Config.ErrorFound = true;
+					break;
+				case 8:
+					PopUpWarning(Translation.Language.get(131) + ". " + Translation.Language.get(195) + "<"
+							+ aux2.getString() + ">" + Config.JumpLine + Translation.Language.get(132));
+					Config.ErrorFound = true;
+					break;
+				case 9:
+					PopUpWarning(Translation.Language.get(196) + aux2.GetCaracter() + ">");
+					Config.ErrorFound = true;
+					break;
+				case 10:
+					PopUpWarning(Translation.Language.get(127) + aux2.getString() + ">");
+					Config.ErrorFound = true;
+					break;
 
 			}
 	}
@@ -901,19 +864,17 @@ public class SolverGUI {
 	 * @param input
 	 * @param Materiales
 	 * @param check
-	 * @return If there is a call function(I.E: water.Cp(Temperature,Cp,...))
-	 *         the output string will contain the equation if not, the output
-	 *         string will be the same of the input. The byte of the GramErr ==
-	 *         1 if the substance/property is not found else == 0
+	 * @return If there is a call function(I.E: water.Cp(Temperature,Cp,...)) the output string will
+	 *         contain the equation if not, the output string will be the same of the input. The byte
+	 *         of the GramErr == 1 if the substance/property is not found else == 0
 	 */
-	public GramErr searchThermodynamicFunction(String input,
-			MaterialMethods Materiales, CheckString ch) {
+	public GramErr searchThermodynamicFunction(String input, MaterialMethods Materiales,
+			CheckString ch) {
 		try {// I don't know why but it gives an error if the first variable
-				// it's call T by the user
+					// it's call T by the user
 
 			if (checkSubstance(input, Materiales)) {
-				StringTokenizer lector = new StringTokenizer(input, ".(),",
-						true);
+				StringTokenizer lector = new StringTokenizer(input, ".(),", true);
 				String aux, material = null, property = null, PrevToken = null;
 				LinkedList<String> Variables = new LinkedList<String>();
 				// The functions are to be like this:
@@ -921,16 +882,16 @@ public class SolverGUI {
 				while (lector.hasMoreTokens()) {
 					aux = lector.nextToken();
 					if (aux.equalsIgnoreCase("."))// The previous token must be
-													// the material
+						// the material
 						material = new String(PrevToken);
 					if (aux.equalsIgnoreCase("("))// The previous token must be
-													// the property
+						// the property
 						property = new String(PrevToken);
 					if (aux.equalsIgnoreCase(","))// The previous token must be
-													// a variable
+						// a variable
 						Variables.add(new String(PrevToken));
 					if (aux.equalsIgnoreCase(")"))// The previous token must be
-													// last variable
+						// last variable
 						Variables.add(new String(PrevToken));
 					PrevToken = aux;
 				}
@@ -943,13 +904,11 @@ public class SolverGUI {
 								aux = ms.getFormula();
 								// Erase the spaces in the variables and then
 								// split
-								String[] aux2 = ms.getVariables().replace(" ",
-										"").split(",");
+								String[] aux2 = ms.getVariables().replace(" ", "").split(",");
 
 								// Replace the variables
 								aux = aux.replace(" ", "");
-								lector = new StringTokenizer(aux,
-										"+/*-()[]{} ^=!", true);
+								lector = new StringTokenizer(aux, "+/*-()[]{} ^=!", true);
 								String cadena = "";
 								String resultado = new String("");
 								int pos = -1;
@@ -968,9 +927,7 @@ public class SolverGUI {
 								}
 								// Material found. Add workaround for residuals
 								// and return
-								CheckString.ResidualWorkAround
-										.add(new PositionStorer(resultado,
-												input));
+								CheckString.ResidualWorkAround.add(new PositionStorer(resultado, input));
 								return new GramErr((byte) 0, resultado);
 							}
 				// If the functions arrives here then the material or property
@@ -1006,16 +963,14 @@ public class SolverGUI {
 	 * 
 	 * @param input
 	 * @param check
-	 * @return Change the input function water.Cp(Temp,Cp) --> f(water,Cp) =
-	 *         (TempCcCp) the Cc is only because later the matheclipse can give
-	 *         some errors if there is a real comma
+	 * @return Change the input function water.Cp(Temp,Cp) --> f(water,Cp) = (TempCcCp) the Cc is only
+	 *         because later the matheclipse can give some errors if there is a real comma
 	 */
-	private GramErr changeThermodynamicFunction(String input,
-			MaterialMethods Materiales, CheckString ch) {
+	private GramErr changeThermodynamicFunction(String input, MaterialMethods Materiales,
+			CheckString ch) {
 		try {
 			if (checkSubstance(input, Materiales)) {
-				StringTokenizer lector = new StringTokenizer(input, ".(),",
-						true);
+				StringTokenizer lector = new StringTokenizer(input, ".(),", true);
 				String aux, material = null, property = null, PrevToken = null;
 				LinkedList<String> Variables = new LinkedList<String>();
 				// The functions are to be like this:
@@ -1023,26 +978,24 @@ public class SolverGUI {
 				while (lector.hasMoreTokens()) {
 					aux = lector.nextToken();
 					if (aux.equalsIgnoreCase("."))// The previous token must be
-													// the material
+						// the material
 						material = new String(PrevToken);
 					if (aux.equalsIgnoreCase("("))// The previous token must be
-													// the property
+						// the property
 						property = new String(PrevToken);
 					if (aux.equalsIgnoreCase(","))// The previous token must be
-													// a variable
+						// a variable
 						Variables.add(new String(PrevToken));
 					if (aux.equalsIgnoreCase(")"))// The previous token must be
-													// last variable
+						// last variable
 						Variables.add(new String(PrevToken));
 					PrevToken = aux;
 				}
-				aux = "Function*(" + material + CommaSubtitutor + property
-						+ ") = (";
+				aux = "Function*(" + material + CommaSubtitutor + property + ") = (";
 				for (String s : Variables)
 					aux += s + CommaSubtitutor;
-				aux = aux.substring(0, aux.length()
-						- (CommaSubtitutor.length() - 1));// For erasing the
-															// last cc
+				aux = aux.substring(0, aux.length() - (CommaSubtitutor.length() - 1));// For erasing the
+				// last cc
 				aux += ")";
 
 				aux = aux.replace("_", BarraSubstitutor);
@@ -1079,9 +1032,9 @@ public class SolverGUI {
 	}
 
 	/**
-	 * Search for the input string in the textarea. If not found at the first
-	 * time the string is reduced by one character and the search starts again.
-	 * Until something is found or until the string is reduced to zero
+	 * Search for the input string in the textarea. If not found at the first time the string is
+	 * reduced by one character and the search starts again. Until something is found or until the
+	 * string is reduced to zero
 	 * 
 	 * @param error
 	 */
@@ -1093,6 +1046,120 @@ public class SolverGUI {
 			if (!found & error.length() != 0)
 				error = error.substring(0, error.length() - 1);
 		}
+	}
+
+
+	public static String2ME.GramErr searchThermodynamicFunctionCli(String input,
+			MaterialMethods Materiales, CheckString ch) {
+		try {
+			if (checkSubstanceCli(input, Materiales)) { // Use the static helper below
+				StringTokenizer lector = new StringTokenizer(input, ".(),", true);
+				String aux, material = null, property = null, PrevToken = null;
+				LinkedList<String> Variables = new LinkedList<String>();
+				while (lector.hasMoreTokens()) {
+					aux = lector.nextToken();
+					if (aux.equalsIgnoreCase("."))
+						material = new String(PrevToken);
+					if (aux.equalsIgnoreCase("("))
+						property = new String(PrevToken);
+					if (aux.equalsIgnoreCase(","))
+						Variables.add(new String(PrevToken));
+					if (aux.equalsIgnoreCase(")"))
+						Variables.add(new String(PrevToken));
+					PrevToken = aux;
+				}
+
+				for (MaterialList m : Materiales.Materials) {
+					if (m.getMaterial().equalsIgnoreCase(material)) {
+						for (MaterialStore ms : m.getPropertyList()) {
+							if (ms.getProperty().equalsIgnoreCase(property)) {
+								aux = ms.getFormula();
+								String[] aux2 = ms.getVariables().replace(" ", "").split(",");
+								String formulaVars = ms.getVariables(); // Get the expected vars
+
+								// --- Basic Arity Check ---
+								// Count commas in formulaVars + 1 = expected arg count
+								int expectedArgs = 1;
+								if (formulaVars != null && !formulaVars.isEmpty()) {
+									expectedArgs = formulaVars.split(",").length;
+								} else {
+									expectedArgs = 0; // Property might take no args
+								}
+
+								if (Variables.size() != expectedArgs) {
+									System.err.println("ERROR: Argument count mismatch for " + material + "."
+											+ property + ". Expected " + expectedArgs + ", got " + Variables.size());
+									return new String2ME.GramErr((byte) 1, input); // Use error code 1 for now
+								}
+								// --- End Arity Check ---
+
+
+								String resultado = substituteThermoVars(aux, aux2, Variables);
+
+								// Add workaround for residuals display if needed later
+								// CheckString.ResidualWorkAround.add(new PositionStorer(resultado, input));
+								return new String2ME.GramErr((byte) 0, resultado);
+							}
+						}
+					}
+				}
+				return new String2ME.GramErr((byte) 1, input); // Material/Property combination not found
+			}
+			return new String2ME.GramErr((byte) 0, input); // Not a thermo function call
+		} catch (Exception e) {
+			System.err.println("Error during thermodynamic function processing for: " + input);
+			e.printStackTrace(System.err);
+			return new String2ME.GramErr((byte) 1, input); // Return error on exception
+		}
+	}
+
+
+	public static boolean checkSubstanceCli(String input, MaterialMethods Materiales) {
+		int pos = input.indexOf(".");
+		if (pos <= 0 || pos == input.length() - 1)
+			return false;
+		String potentialSubstance = input.substring(0, pos);
+		for (String knownMaterial : Materiales.getMaterials()) {
+			if (potentialSubstance.equalsIgnoreCase(knownMaterial)) {
+				int openParen = input.indexOf('(', pos);
+				if (openParen > pos) { // Allow property name to exist
+					int closeParen = input.lastIndexOf(')');
+					if (closeParen > openParen)
+						return true;
+				}
+			}
+		}
+		return false;
+	}
+
+
+	private static String substituteThermoVars(String formula, String[] dbVars,
+			LinkedList<String> callVars) {
+		String result = formula.replace(" ", ""); // Start with formula, no spaces
+		StringTokenizer tokenizer = new StringTokenizer(result, "+/*-()[]{} ^=!", true);
+		StringBuilder reconstructed = new StringBuilder();
+		String token;
+
+		while (tokenizer.hasMoreTokens()) {
+			token = tokenizer.nextToken();
+			int pos = varPositionCli(token, dbVars); // Check if token is a DB variable
+			if (pos != -1) {
+				reconstructed.append(callVars.get(pos)); // Substitute with calling variable
+			} else {
+				reconstructed.append(token); // Keep original token (operator, number, etc.)
+			}
+		}
+		return reconstructed.toString();
+	}
+
+
+	private static int varPositionCli(String var, String[] list) {
+		for (int i = 0; i < list.length; i++) {
+			if (list[i].equalsIgnoreCase(var)) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 }
