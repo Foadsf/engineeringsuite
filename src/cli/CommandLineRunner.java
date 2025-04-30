@@ -445,33 +445,38 @@ public class CommandLineRunner {
 
   // Helper to format and print residuals
   private static void printResidualsToConsole() {
-    if (CheckString.FunctionsSolved.isEmpty()) {
-      System.out.println("No equations were solved to calculate residuals.");
+    if (CheckString.FunctionsSolved.isEmpty() && !executionError) { // Also check executionError
+                                                                    // flag
+      System.out.println("No equations were solved or available to calculate residuals.");
+      return;
+    } else if (CheckString.FunctionsSolved.isEmpty()) {
+      System.out.println("Cannot calculate residuals due to previous errors.");
       return;
     }
 
+
     NumberFormat AvgFormat = new DecimalFormat("##0.#####");
-    NumberFormat SmallFormat = new DecimalFormat("#.#####E0");
+    NumberFormat SmallFormat = new DecimalFormat("0.#####E0");
     NumberFormat BigFormat = new DecimalFormat("#####0.##E0");
 
-    System.out.println("Equation Residuals (Target: 0)");
-    System.out.println("--------------------------------------------------");
+    System.out.println("Equation Residuals (Internal Form = 0, Target: 0)"); // Clarify it's
+                                                                             // internal form
+    System.out.println("------------------------------------------------------------");
 
     Iterator<EqStorer> it = CheckString.FunctionsSolved.iterator();
-    CheckString Ch = new CheckString(); // Instance needed for non-static methods if any
 
     while (it.hasNext()) {
       EqStorer eqaux = it.next();
-      String originalEquation = eqaux.getEquation(); // This is like F(x) - G(x) = 0 -> internal
-                                                     // form is F(x)-G(x)
+      String internalEquation = eqaux.getEquation(); // This is like F(x) - G(x)
       double residual = 0.0;
       String residualStr = "";
-      String displayEquation = "";
+      String displayEquation = ""; // Initialize
 
       try {
-        residual = DiffAndEvaluator.Evaluate("N(" + originalEquation + ")"); // Evaluate the
-                                                                             // F(x)-G(x) form
+        // Calculate residual first
+        residual = DiffAndEvaluator.Evaluate("N(" + internalEquation + ")");
 
+        // Format residual value
         if (Math.abs(residual) < 10000 && Math.abs(residual) >= 1e-5)
           residualStr = AvgFormat.format(residual);
         else if (Math.abs(residual) < 1e-5 && Math.abs(residual) != 0)
@@ -481,39 +486,38 @@ public class CommandLineRunner {
         else // Handle exactly zero
           residualStr = AvgFormat.format(residual);
 
-        // Reconstruct display equation (this is tricky, might need better approach)
-        // Try to find '=' sign position marker if stored, otherwise just show internal
-        // form
-        int i = findEqualConsole(originalEquation); // Need this helper
-        if (i != -1) {
-          displayEquation = originalEquation.substring(0, i - 3) + " = "
-              + originalEquation.substring(i + 1, originalEquation.length() - 1);
-          displayEquation = displayEquation.replace("Degree", "");
-          displayEquation = displayEquation.replace("Gg", "_");
-          displayEquation = displayEquation.replace("3.141592653589793", "Pi"); // Approx
-        } else {
-          displayEquation = originalEquation + " = 0"; // Assume form F(x) = 0
-          displayEquation = displayEquation.replace("Gg", "_");
-        }
-        // Replace internal var names with original case for display
-        // This part is complex without storing original equation text explicitly
-        // For now, we'll just print the reconstructed equation
+        // --- Display internal form directly ---
+        displayEquation = internalEquation.replace("Gg", "_") + " = 0";
+        // Attempt to replace internal variable names with original case for readability
+        displayEquation = replaceVarsWithCase(displayEquation);
+        // --- End direct display ---
 
       } catch (Exception e) {
-        residualStr = "Error evaluating (" + e.getMessage() + ")";
-        displayEquation = originalEquation + " (Internal Form)";
-        executionError = true;
+        // Error during residual *evaluation*
+        residualStr = "Error evaluating (" + e.getClass().getSimpleName() + ")"; // Show exception
+                                                                                 // type
+        displayEquation = internalEquation.replace("Gg", "_") + " = 0 (Eval Error)";
+        displayEquation = replaceVarsWithCase(displayEquation);
+        executionError = true; // Mark error occurred during residual calc
       }
 
-      System.out.printf("%-40s | Residual: %s%n",
-          displayEquation.substring(0, Math.min(displayEquation.length(), 40)), residualStr);
-      if (Math.abs(residual) > Config.Precision * 10) { // Use a slightly larger tolerance for
-                                                        // warning
+      // Print, ensuring displayEquation isn't too long for formatting
+      System.out.printf("%-60s | Residual: %s%n",
+          displayEquation.substring(0, Math.min(displayEquation.length(), 60)), residualStr);
+
+      // Check if residual is high *only if* evaluation succeeded
+      if (!residualStr.contains("Error") && Math.abs(residual) > Config.Precision * 10) { // Use a
+                                                                                          // slightly
+                                                                                          // larger
+                                                                                          // tolerance
+                                                                                          // for
+                                                                                          // warning
         SolverGUI.ResidualsHigh = true; // Set flag if any residual is high
       }
-    }
+    } // end while
+
     if (SolverGUI.ResidualsHigh) {
-      System.out.println("WARNING: One or more residuals are high, solution may be inaccurate.");
+      System.out.println("\nWARNING: One or more residuals are high, solution may be inaccurate.");
     }
   }
 
@@ -613,6 +617,21 @@ public class CommandLineRunner {
       }
     }
     return false;
+  }
+
+  private static String replaceVarsWithCase(String equation) {
+    String result = equation;
+    // Sort by length descending to replace longer names first (e.g., Temp before T)
+    java.util.List<String> sortedVars = new java.util.ArrayList<>(CheckString.CaseVariables);
+    Collections.sort(sortedVars, (s1, s2) -> Integer.compare(s2.length(), s1.length()));
+
+    for (String originalCaseVar : sortedVars) {
+      // Use regex word boundaries (\b) to avoid partial replacements (e.g., replacing 't' in 'nt')
+      // Need to escape regex special characters if variable names contain them (unlikely here)
+      result = result.replaceAll("\\b(?i)" + originalCaseVar.replace("_", "Gg") + "\\b",
+          originalCaseVar);
+    }
+    return result;
   }
 
 } // End CommandLineRunner Class

@@ -69,21 +69,29 @@ set "JAVA_EXIT_CODE=%errorlevel%"
 echo.
 echo ------------------------------------
 
-if %JAVA_EXIT_CODE% == 0 (
-    echo Engineering Suite CLI finished successfully.
-) else (
-    echo ERROR: Engineering Suite CLI finished with errors (Exit Code: %JAVA_EXIT_CODE%).
+rem --- Status Reporting (Using IF ERRORLEVEL) ---
+echo.
+echo ------------------------------------
+REM Check if the errorlevel is 1 OR GREATER (indicates failure)
+IF ERRORLEVEL 1 (
+    echo ERROR: Engineering Suite CLI finished with errors - Exit Code: %JAVA_EXIT_CODE%.
     echo Please check the output above for details.
+    set FINAL_EXIT_CODE=1
+) ELSE (
+    REM If errorlevel is NOT 1 or greater, it must be 0 (success)
+    echo Engineering Suite CLI finished successfully.
+    set FINAL_EXIT_CODE=0
 )
 echo.
 goto cleanup_exit
 
 :fail_exit
 echo Script aborted due to error.
-set JAVA_EXIT_CODE=1
+set FINAL_EXIT_CODE=1
+goto cleanup_exit
 
 :cleanup_exit
 echo Press any key to close this window...
 pause > nul
 endlocal
-exit /b %JAVA_EXIT_CODE%
+exit /b %FINAL_EXIT_CODE%
