@@ -1,58 +1,135 @@
 @echo off
-echo Cleaning previous build...
-if exist bin (
-    echo Deleting bin directory...
-    rd /s /q bin
-    if errorlevel 1 (
-       echo ERROR: Failed to delete bin directory. Check permissions or if files are in use.
-       goto :eof
-    )
-)
-echo Creating bin directory...
-mkdir bin
-if errorlevel 1 (
-    echo ERROR: Failed to create bin directory.
-    goto :eof
-)
+setlocal enabledelayedexpansion
 
-rem Option 1: Rely on JAVA_HOME (Recommended for flexibility)
-rem set "JDK8_HOME=%JAVA_HOME%"
-rem Option 2: Hardcode path (Uncomment below and edit if needed, comment out Option 1)
-set "JDK8_HOME=C:\Program Files\Eclipse Adoptium\jdk-8.0.442.6-hotspot"
-
-rem --- Check if JDK 8 Path is Found ---
-if not defined JDK8_HOME (
-    echo ERROR: JAVA_HOME environment variable is not set.
-    echo Please set JAVA_HOME to point to your JDK 8 installation directory.
-    goto :fail
-)
-if not exist "%JDK8_HOME%\bin\javac.exe" (
-    echo ERROR: javac.exe not found in %JDK8_HOME%\bin.
-    echo Please ensure JAVA_HOME points to a valid JDK 8 installation.
-    goto :fail
-)
-echo Using JDK 8 from: %JDK8_HOME%
+echo --- Engineering Suite Build Script ---
 echo.
 
-echo Generating sources list...
-dir /s /b src\*.java > sources.txt
+rem --- Configuration ---
+rem Define the path to your JDK 8 installation.
+rem Option 1: Use JAVA_HOME environment variable (uncomment the next line)
+rem set "JDK8_PATH=%JAVA_HOME%"
+rem Option 2: Hardcode the path (edit if necessary)
+set "JDK8_PATH=C:\Program Files\Eclipse Adoptium\jdk-8.0.442.6-hotspot"
 
-echo Compiling with JDK 8...
-"%JDK8_HOME%\bin\javac.exe" -encoding UTF-8 -d bin -cp "Dependencies\*" @sources.txt
-
-if errorlevel 1 (
-    echo ********** BUILD FAILED! **********
-    del sources.txt
-    goto :fail
+rem --- Pre-Checks ---
+echo [Step 1/7] Verifying JDK 8 path...
+if not defined JDK8_PATH (
+    echo ERROR: JDK8_PATH is not set in the script.
+    echo        Please edit build.bat and set the correct path.
+    goto fail
 )
+if not exist "%JDK8_PATH%" (
+    echo ERROR: JDK 8 directory not found: %JDK8_PATH%
+    echo        Please edit build.bat with the correct path.
+    goto fail
+)
+if not exist "%JDK8_PATH%\bin\javac.exe" (
+    echo ERROR: javac.exe not found in %JDK8_PATH%\bin
+    echo        Please ensure the path points to a valid JDK 8 installation.
+    goto fail
+)
+echo      Using JDK 8: %JDK8_PATH%
+echo.
 
-echo ********** BUILD SUCCESSFUL! **********
-del sources.txt
+echo [Step 2/7] Verifying 'src' directory...
+if exist src (
+    echo      'src' directory found.
+) else (
+    echo ERROR: 'src' directory not found in current path: %cd%
+    echo        Please run this script from the project root directory.
+    goto fail
+)
+echo.
+
+echo [Step 3/7] Verifying 'Dependencies' directory...
+if exist Dependencies (
+    echo      'Dependencies' directory found.
+) else (
+    echo ERROR: 'Dependencies' directory not found in current path: %cd%
+    goto fail
+)
+echo.
+
+rem --- Build Steps ---
+
+echo [Step 4/7] Cleaning previous build (if exists)...
+if exist bin goto DeleteBin
+rem If bin does not exist, skip deletion logic
+echo      'bin' directory not found, no cleanup needed.
+goto ContinueAfterClean
+
+:DeleteBin
+rem This label is reached only if 'bin' exists
+echo      Attempting to delete existing 'bin' directory...
+rd /s /q bin
+if errorlevel 1 goto DeleteBinFailed
+rem If deletion succeeded
+echo      'bin' directory deleted successfully.
+goto ContinueAfterClean
+
+:DeleteBinFailed
+rem This label is reached if rd command failed
+echo ERROR: Failed to delete 'bin' directory.
+echo        Possible causes:
+echo        - Permissions issue.
+echo        - Files/Directory in use (close Engineering Suite, IDEs, Terminals in 'bin').
+echo        - Antivirus lock.
+echo        Please resolve the lock and run the script again.
+goto fail
+
+:ContinueAfterClean
+rem This label is reached whether bin existed and was deleted, or never existed
+echo.
+
+echo [Step 5/7] Creating 'bin' directory...
+mkdir bin
+if errorlevel 1 (
+    echo ERROR: Failed to create 'bin' directory. Check permissions.
+    goto fail
+)
+echo      'bin' directory created.
+echo.
+
+echo [Step 6/7] Generating source file list...
+dir /s /b src\*.java > sources.txt
+if errorlevel 1 (
+    echo ERROR: Failed to list source files from 'src'.
+    goto fail
+)
+rem Check if sources.txt is empty
+for %%F in (sources.txt) do if %%~zF == 0 (
+    echo ERROR: No .java files found in 'src' directory or subdirectories.
+    del sources.txt
+    goto fail
+)
+echo      sources.txt created.
+echo.
+
+echo [Step 7/7] Compiling with JDK 8...
+"%JDK8_PATH%\bin\javac.exe" -encoding UTF-8 -d bin -cp "Dependencies\*" @sources.txt
+if errorlevel 1 (
+    echo.
+    echo ********** BUILD FAILED! **********
+    echo Error during compilation. See compiler messages above.
+    del sources.txt
+    goto fail
+)
+echo      Compilation successful.
+echo.
+echo ********** BUILD COMPLETED SUCCESSFULLY **********
+goto cleanup
+
+rem --- Exit Labels ---
+:fail
+echo.
+echo ********** BUILD PROCESS FAILED **********
+if exist sources.txt del sources.txt
+echo Press any key to exit...
+pause > nul
+exit /b 1
 
 :cleanup
-rem Add any other cleanup if needed
-goto :eof
-
-:fail
-echo Build process encountered an error.
-pause
+if exist sources.txt del sources.txt
+echo Build script finished.
+endlocal
+exit /b 0

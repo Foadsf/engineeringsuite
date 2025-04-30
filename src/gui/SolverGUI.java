@@ -1095,4 +1095,109 @@ public class SolverGUI {
 		}
 	}
 
+	    
+    public static String2ME.GramErr searchThermodynamicFunctionCli(String input, MaterialMethods Materiales, CheckString ch) {
+		try {
+			if (checkSubstanceCli(input, Materiales)) { // Use the static helper below
+				StringTokenizer lector = new StringTokenizer(input, ".(),", true);
+				String aux, material = null, property = null, PrevToken = null;
+				LinkedList<String> Variables = new LinkedList<String>();
+				while (lector.hasMoreTokens()) {
+					aux = lector.nextToken();
+					if (aux.equalsIgnoreCase(".")) material = new String(PrevToken);
+					if (aux.equalsIgnoreCase("(")) property = new String(PrevToken);
+					if (aux.equalsIgnoreCase(",")) Variables.add(new String(PrevToken));
+					if (aux.equalsIgnoreCase(")")) Variables.add(new String(PrevToken));
+					PrevToken = aux;
+				}
+
+				for (MaterialList m : Materiales.Materials) {
+					if (m.getMaterial().equalsIgnoreCase(material)) {
+						for (MaterialStore ms : m.getPropertyList()) {
+							if (ms.getProperty().equalsIgnoreCase(property)) {
+								aux = ms.getFormula();
+								String[] aux2 = ms.getVariables().replace(" ", "").split(",");
+								String formulaVars = ms.getVariables(); // Get the expected vars
+
+								// --- Basic Arity Check ---
+								// Count commas in formulaVars + 1 = expected arg count
+								int expectedArgs = 1;
+								if(formulaVars != null && !formulaVars.isEmpty()) {
+									expectedArgs = formulaVars.split(",").length;
+								} else {
+									expectedArgs = 0; // Property might take no args
+								}
+
+								if (Variables.size() != expectedArgs) {
+									System.err.println("ERROR: Argument count mismatch for " + material + "." + property + ". Expected " + expectedArgs + ", got " + Variables.size());
+									return new String2ME.GramErr((byte) 1, input); // Use error code 1 for now
+								}
+								// --- End Arity Check ---
+
+
+								String resultado = substituteThermoVars(aux, aux2, Variables);
+
+								// Add workaround for residuals display if needed later
+								// CheckString.ResidualWorkAround.add(new PositionStorer(resultado, input));
+								return new String2ME.GramErr((byte) 0, resultado);
+							}
+						}
+					}
+				}
+				return new String2ME.GramErr((byte) 1, input); // Material/Property combination not found
+			}
+			return new String2ME.GramErr((byte) 0, input); // Not a thermo function call
+		} catch (Exception e) {
+			System.err.println("Error during thermodynamic function processing for: " + input);
+			e.printStackTrace(System.err);
+			return new String2ME.GramErr((byte) 1, input); // Return error on exception
+		}
+	}
+
+	
+	public static boolean checkSubstanceCli(String input, MaterialMethods Materiales) {
+		int pos = input.indexOf(".");
+		if (pos <= 0 || pos == input.length() - 1) return false;
+		String potentialSubstance = input.substring(0, pos);
+		for (String knownMaterial : Materiales.getMaterials()) {
+			if (potentialSubstance.equalsIgnoreCase(knownMaterial)) {
+				int openParen = input.indexOf('(', pos);
+				if (openParen > pos) { // Allow property name to exist
+						int closeParen = input.lastIndexOf(')');
+						if (closeParen > openParen) return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	
+	private static String substituteThermoVars(String formula, String[] dbVars, LinkedList<String> callVars) {
+		String result = formula.replace(" ", ""); // Start with formula, no spaces
+		StringTokenizer tokenizer = new StringTokenizer(result, "+/*-()[]{} ^=!", true);
+		StringBuilder reconstructed = new StringBuilder();
+		String token;
+
+		while (tokenizer.hasMoreTokens()) {
+			token = tokenizer.nextToken();
+			int pos = varPositionCli(token, dbVars); // Check if token is a DB variable
+			if (pos != -1) {
+				reconstructed.append(callVars.get(pos)); // Substitute with calling variable
+			} else {
+				reconstructed.append(token); // Keep original token (operator, number, etc.)
+			}
+		}
+		return reconstructed.toString();
+	}
+
+	
+	private static int varPositionCli(String var, String[] list) {
+		for (int i = 0; i < list.length; i++) {
+			if (list[i].equalsIgnoreCase(var)) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
 }
