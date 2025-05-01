@@ -1,0 +1,65 @@
+/* Example 14: Psychrometric Properties (Simplified Manual Calc) */
+/* Calculates humidity ratio, enthalpy, and specific volume for moist air */
+/* using basic formulas, AVOIDING direct AirH2O calls due to parsing issues */
+/* This demonstrates the *type* of calculation, NOT a direct property lookup */
+
+/* UNITS: Ensure consistency! */
+/* Temperature (T_db) in K */
+/* Pressure (P) in kPa */
+/* Relative Humidity (phi) as fraction (0 to 1) */
+/* Partial pressures (P_ws, P_w) in kPa */
+/* Humidity Ratio (W) in kg_water/kg_dry_air */
+/* Enthalpy (h) in kJ/kg_dry_air */
+/* Specific Volume (v) in m^3/kg_dry_air */
+/* R_air, R_w are specific gas constants in kJ/kg-K */
+
+/** Input State Variables **/
+T_db_C = 25       /* Dry-bulb temperature in Celsius */
+phi = 0.60        /* Relative humidity (60%) */
+P_kPa = 101.325   /* Atmospheric pressure in kPa */
+
+/** Conversions and Constants **/
+T_db_K = T_db_C + 273.15 /* K */
+R_air = 0.287   /* kJ/kg-K */
+R_w = 0.4615    /* kJ/kg-K */
+Cp_air = 1.005  /* kJ/kg-K (approx) */
+Cp_wv = 1.86    /* kJ/kg-K (approx water vapor spec heat) */
+h_fg_0C = 2501  /* kJ/kg (approx enthalpy of vaporization at 0 C) */
+
+/** Calculations (Using simplified correlations/definitions) **/
+
+/* 1. Saturation pressure of water vapor at T_db */
+/* Using a simplified Antoine-like equation (coefficients are illustrative ONLY) */
+/* !! Replace with a proper call if available, e.g., SteamSaturated.Pressure(P_ws_kPa, T=T_db_K) !! */
+/* This is just a placeholder formula */
+Log[P_ws_kPa] = 12.0 - 4000 / (T_db_K - 40) /* Output P_ws_kPa */
+
+/* 2. Partial pressure of water vapor */
+P_w_kPa = phi * P_ws_kPa
+
+/* 3. Humidity Ratio (W) */
+/* W = 0.622 * P_w / (P_total - P_w) */
+W_kgkg = 0.622 * P_w_kPa / (P_kPa - P_w_kPa) /* kg_water / kg_dry_air */
+
+/* 4. Enthalpy (h) per kg of dry air */
+/* h = Cp_air * T_C + W * (h_g at T_C) */
+/* h_g approx = h_fg_0C + Cp_wv * T_C */
+h_air_kJkg = Cp_air * T_db_C + W_kgkg * (h_fg_0C + Cp_wv * T_db_C) /* kJ / kg_dry_air */
+
+/* 5. Specific Volume (v) per kg of dry air */
+/* v = R_air * T_K / P_air = R_air * T_K / (P_total - P_w) */
+v_air_m3kg = R_air * T_db_K / (P_kPa - P_w_kPa) /* m^3 / kg_dry_air */
+
+
+/* --- Wet bulb calculation is complex, omitted in this simplified example --- */
+/* T_wb_C_calc = Dummy_WetBulb(T_db_C, phi, P_kPa) */
+
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses (Needed for intermediate steps like P_ws_kPa) */
+P_ws_kPa = 3.0    /* kPa (Guess based on 25 C) */
+P_w_kPa = 1.8     /* kPa (Guess based on phi * P_ws) */
+W_kgkg = 0.012    /* kg/kg */
+h_air_kJkg = 50   /* kJ/kg */
+v_air_m3kg = 0.85 /* m3/kg */
+@$@%@EndOfInitialVariableValueData@$@%@
