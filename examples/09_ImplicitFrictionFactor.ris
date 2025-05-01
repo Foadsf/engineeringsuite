@@ -3,7 +3,7 @@
 
 /** Colebrook Equation **/
 /* The unknowns are f and f_sqrt */
-f_sqrt = Sqrt[f]
+f_sqrt = f ^ 0.5
 1 / f_sqrt = -2.0 * Log[ (eps_D / 3.7) + (2.51 / (Re * f_sqrt)) ]
 
 @$@%@EndOfEquationData@$@%@

@@ -1,28 +1,52 @@
 {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnSave": true,
+  // --- General Editor Settings ---
+  "editor.formatOnSave": true, // Format files on save
+  "files.eol": "\n", // Default to LF line endings for new files
+  "files.trimTrailingWhitespace": true, // Remove trailing spaces on save
+  "files.insertFinalNewline": true, // Ensure file ends with a newline
+
+  // --- YAML Specific Settings ---
+  "[yaml]": {
+    "editor.defaultFormatter": "redhat.vscode-yaml", // Specify the formatter
+    "editor.tabSize": 2, // Use 2 spaces for indentation (YAML standard)
+    "editor.insertSpaces": true, // Ensure spaces are used instead of tabs
+    "editor.autoIndent": "advanced", // Helps maintain proper indentation
+    // Optional: Helps visually track line length, doesn't automatically wrap
+    "editor.rulers": [
+      80, 120
+      // Add other lengths if desired
+    ]
+    // Optional: Configure YAML language server for more advanced features/validation
+    // (Refer to Red Hat YAML extension documentation for specific options)
+    // "yaml.format.enable": true, // Ensure formatting is explicitly enabled
+    // "yaml.format.singleQuote": false, // Prefer double quotes for strings if needed
+    // "yaml.completion": true,
+    // "yaml.validate": true,
+  },
+
+  // --- Settings for other relevant file types ---
+  "[bat]": {
+    "files.eol": "\r\n" // Enforce CRLF for Windows Batch files
+  },
+  "[markdown]": {
+    "files.trimTrailingWhitespace": false // Often useful to allow trailing spaces in Markdown
+  },
+  "[java]": {
+    // Add your preferred Java formatter settings if using one
+    // Example: "editor.defaultFormatter": "redhat.java",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
+  },
+  "[xml]": {
     "editor.tabSize": 2,
-    "editor.insertSpaces": true,
-    "[java]": {
-      "editor.defaultFormatter": "redhat.java",
-      "editor.formatOnSave": true
-    },
-    "[markdown]": {
-      "editor.defaultFormatter": "yzhang.markdown-all-in-one"
-    },
-    "[yaml]": {
-      "editor.defaultFormatter": "redhat.vscode-yaml"
-    },
-    "[powershell]": {
-      "editor.defaultFormatter": "ms-vscode.powershell"
-    },
-    "java.format.settings.url": "https://raw.githubusercontent.com/google/styleguide/gh-pages/eclipse-java-google-style.xml",
-    "files.exclude": {
-      "**/.git": true,
-      "**/*.jar": true,
-      "**/*.7z": true
-    },
-    "files.associations": {
-      "*.ris": "plaintext"
-    }
+    "editor.insertSpaces": true
+    // Add XML formatter if desired
+  },
+  "[json]": {
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true
   }
+
+  // Add any other language-specific settings or overrides here
+}

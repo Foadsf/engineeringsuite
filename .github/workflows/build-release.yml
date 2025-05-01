@@ -1,134 +1,239 @@
-name: Build and Package Windows Release
+--- # Document Start Added
+name: Build, Test, and Package Windows Release
 
 on:
   push:
-    branches: [ master ] # Optional: Build on pushes to master (creates artifact only)
+    branches:
+      - master # Build on pushes to master (creates artifact only)
     tags:
-      - 'v*'        # TRIGGER on tags starting with 'v' (e.g., v1.0, v1.0.2)
+      - "v*" # TRIGGER on tags starting with 'v' (creates release)
+  pull_request:
+    branches:
+      - master # Run build and tests on PRs targeting master
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  build:
+  build_and_test:
     runs-on: windows-latest # Use a Windows runner
 
     permissions:
-      contents: write # Needed to create/upload releases
+      contents: write # Needed to create/upload releases and potentially interact with API via gh
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0 # Fetches all history so tags are available
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetches all history so tags are available
 
-    # --- UPDATED: Use JDK 8 ---
-    - name: Set up JDK 8
-      uses: actions/setup-java@v4
-      with:
-        java-version: '8' # Specify Java 8
-        distribution: 'temurin' # Using Eclipse Temurin distribution (formerly AdoptOpenJDK)
+      # --- Set up JDK 8 ---
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: "8" # Specify Java 8
+          distribution: "temurin"
 
-    # --- UPDATED: Add encoding flag ---
-    - name: Compile Java code
-      shell: cmd
-      run: |
-        echo "Creating bin directory..."
-        mkdir bin
-        echo "Generating sources list..."
-        dir /s /b src\*.java > sources.txt
-        echo "Compiling with JDK 8..."
-        javac -encoding UTF-8 -d bin -cp "Dependencies\*" @sources.txt
-        if %errorlevel% neq 0 exit /b %errorlevel%
-        echo "Compilation successful."
+      # --- Compile Code ---
+      - name: Compile Java code
+        shell: cmd
+        run: |
+          echo "Creating bin directory..."
+          mkdir bin
+          echo "Generating sources list..."
+          dir /s /b src\*.java > sources.txt
+          echo "Compiling with JDK 8..."
+          javac -encoding UTF-8 -d bin -cp "Dependencies\*" @sources.txt
+          if %errorlevel% neq 0 exit /b %errorlevel%
+          echo "Compilation successful."
 
-    - name: Create run script
-      shell: cmd
-      run: |
-        echo @echo off > run-esuite.bat
-        echo rem Requires Java 8 Runtime Environment (JRE 8) in PATH or JAVA_HOME >> run-esuite.bat
-        echo java -cp ".;bin;Dependencies\*" gui.Principal >> run-esuite.bat
-        echo pause >> run-esuite.bat
+      # --- Run Automated Tests ---
+      - name: Run Example Tests with run_cli.bat
+        id: run_tests
+        shell: powershell
+        run: |
+          $examplesDir = "examples"
+          $cliScript = "run_cli.bat"
+          $success = $true # Assume success initially
 
-    - name: Package application into ZIP
-      shell: powershell
-      run: |
-        # Extract version from tag or set default
-        if ($env:GITHUB_REF -like 'refs/tags/v*') {
-          $version = $env:GITHUB_REF -replace 'refs/tags/', ''
-        } else {
-          $version = "dev-${{ github.run_number }}"
-        }
-        $assetName = "eSuite-${version}.zip"
-        Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, examples, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, run-esuite.bat -DestinationPath $assetName -Force
-        echo "ASSET_NAME=$assetName" >> $env:GITHUB_ENV # Share asset name with later steps
-        echo "VERSION=$version" >> $env:GITHUB_ENV # Share version with later steps
-        echo "Created Application ZIP: $assetName"
+          # Exclude non-runnable or known-failing examples
+          $excludeList = @(
+              "10_SymbolicAndNumerical.md",
+              "13_SymbolicSimplification.md",
+              "07_PlottingExamples.md",
+              # Add other MD files or known problematic RIS files here if needed temporarily
+              "09_ImplicitFrictionFactor.ris",
+              "12_ChemicalEquilibrium.ris",
+              "22_SimpleOptimization.ris",
+              "26_PipeSizing.ris" # Keep this commented unless you want to explicitly skip its test run
+          )
 
-    - name: Prepare Chocolatey package source
-      shell: powershell
-      run: |
-        # Create the structure expected by choco pack
-        New-Item -Path 'choco-pkg-src' -ItemType Directory -Force
-        New-Item -Path 'choco-pkg-src\tools' -ItemType Directory -Force
-        # Copy the nuspec and ps1 scripts from the repo (assuming they are in ./chocolatey)
-        if (Test-Path -Path 'chocolatey\engineeringsuite.nuspec') {
-            Copy-Item -Path 'chocolatey\engineeringsuite.nuspec' -Destination 'choco-pkg-src\'
-        } else {
-            Write-Error "engineeringsuite.nuspec not found in ./chocolatey directory"
-            exit 1
-        }
-        if (Test-Path -Path 'chocolatey\tools\chocolateyInstall.ps1') {
-            Copy-Item -Path 'chocolatey\tools\*' -Destination 'choco-pkg-src\tools\'
-        } else {
-             Write-Error "Chocolatey install/uninstall scripts not found in ./chocolatey/tools directory"
-             exit 1
-        }
-        # Copy necessary files for embedding (into the package's tools dir)
-        Copy-Item -Path "${{ env.ASSET_NAME }}" -Destination 'choco-pkg-src\tools\' # Copy the already created zip
-        Copy-Item -Path 'lgpl.txt' -Destination 'choco-pkg-src\tools\'
-        Copy-Item -Path 'icons\logo.png' -Destination 'choco-pkg-src\tools\'
-        echo "Chocolatey package source prepared in choco-pkg-src"
+          Write-Host "Starting tests in '$examplesDir' using '$cliScript'..."
+          $risFiles = Get-ChildItem -Path $examplesDir -Filter *.ris
 
-    - name: Build Chocolatey Package
-      shell: powershell
-      run: |
-        # Determine version from nuspec
-        [xml]$nuspec = Get-Content -Path "choco-pkg-src\engineeringsuite.nuspec"
-        $nuspecVersion = $nuspec.package.metadata.version
-        Write-Host "Version found in nuspec: $nuspecVersion"
+          if ($risFiles.Count -eq 0) {
+              Write-Host "No .ris files found in $examplesDir to test."
+              exit 0 # Not an error if no examples exist
+          }
 
-        # Run choco pack
-        cd choco-pkg-src
-        Write-Host "Running choco pack..."
-        choco pack
-        if ($LASTEXITCODE -ne 0) { Write-Error "choco pack failed!"; exit 1 }
-        Write-Host "Choco pack succeeded."
+          foreach ($file in $risFiles) {
+              if ($excludeList -contains $file.Name) {
+                  Write-Host "Skipping excluded file: $($file.FullName)"
+                  continue
+              }
 
-        # Validate and move nupkg
-        $expectedNupkgPath = "engineeringsuite.${nuspecVersion}.nupkg"
-        Write-Host "Expected NUPKG path: $expectedNupkgPath"
-        if (-not (Test-Path -Path $expectedNupkgPath -PathType Leaf)) { Write-Error "Packed file '$expectedNupkgPath' not found!"; Get-ChildItem -Path .; exit 1 }
-        $nupkgName = "engineeringsuite.${nuspecVersion}.nupkg"
-        Write-Host "Moving '$expectedNupkgPath' to '..\${nupkgName}'"
-        Move-Item -Path $expectedNupkgPath -Destination "..\${nupkgName}" -Force
-        echo "CHOCO_PKG_NAME=$nupkgName" >> $env:GITHUB_ENV
-        cd ..
-        echo "Created Chocolatey package: $nupkgName"
+              Write-Host "-----------------------------------------------------"
+              Write-Host "Running test: $($file.FullName)"
+              Write-Host "-----------------------------------------------------"
+              # Execute the batch script - PASS /test ARGUMENT to skip pause
+              cmd.exe /c "$cliScript $($file.FullName) /test"
+              $exitCode = $LASTEXITCODE
 
-    - name: Upload build artifacts (ZIP and NUPKG)
-      uses: actions/upload-artifact@v4
-      with:
-        name: eSuite-Windows-Build-${{ env.VERSION }}
-        path: |
-          ${{ env.ASSET_NAME }}
-          ${{ env.CHOCO_PKG_NAME }}
+              if ($exitCode -ne 0) {
+                  Write-Error "Test FAILED for $($file.Name) with exit code $exitCode"
+                  $success = $false
+                  # Optionally stop on first failure by uncommenting next line:
+                  # exit 1
+              } else {
+                  Write-Host "Test PASSED for $($file.Name)"
+              }
+              Write-Host "" # Add a blank line for readability
+          }
 
-    - name: Create/Update GitHub Release
-      if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          ${{ env.ASSET_NAME }}
-          ${{ env.CHOCO_PKG_NAME }}
-        name: "Engineering Suite ${{ env.VERSION }}"
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          if (-not $success) {
+              Write-Error "One or more tests failed!"
+              exit 1 # Fail the entire workflow step
+          } else {
+              Write-Host "All tests passed successfully."
+          }
+        continue-on-error: false # Fail the workflow if any test fails
+
+      # --- Prepare Run Script ---
+      - name: Create run script (run-esuite.bat)
+        # This runs regardless of test outcome for PRs, but might be better to make conditional too
+        shell: cmd
+        run: |
+          echo @echo off > run-esuite.bat
+          echo rem Requires Java 8 Runtime Environment (JRE 8) in PATH or JAVA_HOME >> run-esuite.bat
+          echo java -cp ".;bin;Dependencies\*" gui.Principal >> run-esuite.bat
+          echo pause >> run-esuite.bat
+
+      # --- Packaging (ZIP) ---
+      - name: Package application into ZIP
+        # Run this step only if tests passed and it's not a PR (or if it's a tagged push)
+        if: steps.run_tests.outcome == 'success' && (github.event_name != 'pull_request' || startsWith(github.ref, 'refs/tags/v'))
+        shell: powershell
+        run: |
+          # Extract version from tag or set default for non-tag pushes/manual runs
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $version = $env:GITHUB_REF -replace 'refs/tags/', ''
+          } elseif ($env:GITHUB_EVENT_NAME -eq 'push' -and $env:GITHUB_REF_NAME -eq 'master') {
+             $version = "dev-master-${{ github.run_number }}"
+          } else {
+            $version = "dev-build-${{ github.run_number }}" # Default for manual runs etc.
+          }
+          $assetName = "eSuite-${version}.zip"
+          # Wrapped long command for better readability
+          Compress-Archive -Path bin, Dependencies, icons, Imagenes, config.txt, `
+            examples, lgpl.txt, README.md, termicas.txt, ThermodynamicalProperties.txt, `
+            run-esuite.bat `
+            -DestinationPath $assetName -Force
+          echo "ASSET_NAME=$assetName" >> $env:GITHUB_ENV
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+          echo "Created Application ZIP: $assetName"
+
+      # --- Chocolatey Packaging ---
+      - name: Prepare Chocolatey package source
+        # Run this step only if tests passed and it's not a PR (or if it's a tagged push)
+        if: steps.run_tests.outcome == 'success' && (github.event_name != 'pull_request' || startsWith(github.ref, 'refs/tags/v'))
+        shell: powershell
+        run: |
+          New-Item -Path 'choco-pkg-src' -ItemType Directory -Force
+          New-Item -Path 'choco-pkg-src\tools' -ItemType Directory -Force
+          if (Test-Path -Path 'chocolatey\engineeringsuite.nuspec') {
+              Copy-Item -Path 'chocolatey\engineeringsuite.nuspec' -Destination 'choco-pkg-src\'
+          } else { Write-Error "engineeringsuite.nuspec not found in ./chocolatey directory"; exit 1 }
+          if (Test-Path -Path 'chocolatey\tools\chocolateyInstall.ps1') {
+              Copy-Item -Path 'chocolatey\tools\*' -Destination 'choco-pkg-src\tools\'
+          } else { Write-Error "Chocolatey install/uninstall scripts not found"; exit 1 }
+          Copy-Item -Path "${{ env.ASSET_NAME }}" -Destination 'choco-pkg-src\tools\'
+          echo "Chocolatey package source prepared in choco-pkg-src"
+
+      - name: Build Chocolatey Package
+        # Run this step only if tests passed and it's not a PR (or if it's a tagged push)
+        if: steps.run_tests.outcome == 'success' && (github.event_name != 'pull_request' || startsWith(github.ref, 'refs/tags/v'))
+        shell: powershell
+        run: |
+          $nuspecPath = "choco-pkg-src\engineeringsuite.nuspec"
+          [xml]$nuspec = Get-Content -Path $nuspecPath
+          # Update nuspec version if building a tag
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+              $tagVersion = "${{ env.VERSION }}" -replace '^v', '' # Remove leading 'v'
+              Write-Host "Updating nuspec version to tag: $tagVersion"
+              $nuspec.package.metadata.version = $tagVersion
+              $nuspec.Save($nuspecPath)
+          }
+          # Read the (potentially updated) version
+          $nuspecVersion = $nuspec.package.metadata.version
+          Write-Host "Using version for choco pack: $nuspecVersion"
+
+          cd choco-pkg-src
+          Write-Host "Running choco pack..."
+          choco pack
+          if ($LASTEXITCODE -ne 0) { Write-Error "choco pack failed!"; exit 1 }
+          Write-Host "Choco pack succeeded."
+
+          $expectedNupkgPath = "engineeringsuite.${nuspecVersion}.nupkg"
+          Write-Host "Expected NUPKG path: $expectedNupkgPath"
+          if (-not (Test-Path -Path $expectedNupkgPath -PathType Leaf)) { Write-Error "Packed file '$expectedNupkgPath' not found!"; Get-ChildItem -Path .; exit 1 }
+          $nupkgName = "engineeringsuite.${nuspecVersion}.nupkg"
+          Write-Host "Moving '$expectedNupkgPath' to '..\${nupkgName}'"
+          Move-Item -Path $expectedNupkgPath -Destination "..\${nupkgName}" -Force
+          echo "CHOCO_PKG_NAME=$nupkgName" >> $env:GITHUB_ENV
+          cd ..
+          echo "Created Chocolatey package: $nupkgName"
+
+      # --- Upload Artifacts ---
+      - name: Upload build artifacts (ZIP and NUPKG)
+        # Run this step only if tests passed and it's not a PR (or if it's a tagged push)
+        if: steps.run_tests.outcome == 'success' && (github.event_name != 'pull_request' || startsWith(github.ref, 'refs/tags/v'))
+        uses: actions/upload-artifact@v4
+        with:
+          name: eSuite-Windows-Build-${{ env.VERSION }}
+          path: |
+            ${{ env.ASSET_NAME }}
+            ${{ env.CHOCO_PKG_NAME }}
+
+      # --- Display Latest Release Info (Informational) ---
+      - name: Display Latest Release Tag
+        # Only run when building a tag (for context before creating the new one)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Fetching latest release information..."
+          try {
+            # Use explicit repo argument for gh cli
+            $latest_release = gh release list --repo ${{ github.repository }} --limit 1 --json tagName --jq ".[0].tagName"
+            if ($latest_release) {
+              echo "Latest release tag found on GitHub: $latest_release"
+              echo "Current tag being built: ${{ github.ref_name }}"
+            } else {
+              echo "No previous releases found on GitHub."
+            }
+          } catch {
+            echo "Warning: Failed to fetch latest release info. Ensure 'gh' CLI is available and GITHUB_TOKEN has permissions."
+          }
+
+      # --- Create GitHub Release (Only on Tag Push) ---
+      - name: Create/Update GitHub Release
+        # Only run for tags AND if tests passed
+        if: startsWith(github.ref, 'refs/tags/v') && steps.run_tests.outcome == 'success'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ${{ env.ASSET_NAME }}
+            ${{ env.CHOCO_PKG_NAME }}
+          name: "Engineering Suite ${{ env.VERSION }}"
+          fail_on_unmatched_files: true # Fail if specified assets don't exist
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

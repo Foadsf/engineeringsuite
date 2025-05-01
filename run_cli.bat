@@ -1,4 +1,8 @@
 @echo off
+
+set "TEST_MODE="
+if /I "%2"=="/test" set "TEST_MODE=1"
+
 setlocal enabledelayedexpansion
 
 rem --- Script Configuration ---
@@ -92,6 +96,9 @@ goto cleanup_exit
 
 :cleanup_exit
 echo Press any key to close this window...
-pause > nul
+if not defined TEST_MODE (
+    echo Press any key to close this window...
+    pause > nul
+)
 endlocal
 exit /b %FINAL_EXIT_CODE%

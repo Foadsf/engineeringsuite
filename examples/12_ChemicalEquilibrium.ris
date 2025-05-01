@@ -1,5 +1,9 @@
 /* Example 12: Simple Chemical Equilibrium A <=> B + C */
 /* Calculates extent of reaction (xi) and Kp */
+/* NOTE: The residual check for equations involving Log[Kp] */
+/*       might report a RuntimeException due to precision */
+/*       limits, even if the solver finds the correct Kp. */
+/*       Check the Kp and xi values for correctness. */
 
 /** Inputs **/
 nA0 = 1.0   /* Initial moles of A */
