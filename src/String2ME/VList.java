@@ -15,8 +15,8 @@ public class VList {
 	public List<VString> Variables = new ArrayList<VString>();
 
 	/**
-	 * At first we check if the variable is already in the List if is in the
-	 * List the we will count one if not we well add it
+	 * At first we check if the variable is already in the List if is in the List the we will count
+	 * one if not we well add it
 	 * 
 	 * @param cadena
 	 */
@@ -39,8 +39,8 @@ public class VList {
 	}
 
 	/**
-	 * This method subtract one count of the count variable of a variable if
-	 * this count reach the zero then the variable will be erase
+	 * This method subtract one count of the count variable of a variable if this count reach the zero
+	 * then the variable will be erase
 	 * 
 	 * @param cadena
 	 * @return boolean. If the variable is not in the List then returns false
@@ -85,8 +85,7 @@ public class VList {
 
 	/**
 	 * 
-	 * @param String
-	 *            , the variable
+	 * @param String , the variable
 	 * @return the times that that variable appears
 	 */
 	public int getCount(String cadena) {
@@ -113,22 +112,42 @@ public class VList {
 		return Variables.size();
 	}
 
+	/**
+	 * Adds the variable 'cadena' to the list or increments its count. Expects 'cadena' to be in the
+	 * internal format (lowercase, Gg).
+	 * 
+	 * @param cadena The internal variable name.
+	 * @param counts The number of times this variable was found (usually 1).
+	 */
 	public void addCountVar(String cadena, int counts) {
+		// ---- ADD DEBUG LINE ----
+		System.out.println("DEBUG: VList.addCountVar called with: '" + cadena + "' count: " + counts);
+		// ---- END DEBUG LINE ----
+
 		boolean IsInIt = false;
 		Iterator<VString> it = Variables.listIterator();
-		VString aux;
-		// We search for it
-		while ((it.hasNext()) & (!IsInIt)) {
+		VString aux = null; // Initialize aux
+
+		// Search for it using case-sensitive equals (should match internal format)
+		while (it.hasNext()) { // Removed redundant !IsInIt check from condition
 			aux = it.next();
-			if (aux.getVar().equals(cadena)) {
+			// Ensure case-insensitive comparison JUST IN CASE, although input should be lowercase
+			if (aux.getVar().equalsIgnoreCase(cadena)) { // Using equalsIgnoreCase for safety
 				IsInIt = true;
 				aux.addCount(counts);
+				break; // Found it, stop searching
 			}
 		}
+
+		// If not found, add it
 		if (!IsInIt) {
-			aux = new VString(cadena);
+			// Create VString with the provided internal name 'cadena'
+			aux = new VString(cadena); // Constructor sets count to 1
 			Variables.add(aux);
-			aux.addCount(counts - 1);
+			// Apply the *rest* of the counts if counts > 1
+			if (counts > 1) {
+				aux.addCount(counts - 1);
+			}
 		}
 	}
 

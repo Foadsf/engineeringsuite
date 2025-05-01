@@ -1,0 +1,22 @@
+/* Example 14: Simple ODE - Exponential Decay */
+/* Solves dy/dt = -k*y */
+/* Analytical solution: y(t) = y0 * Exp[-k*t] */
+
+/** Parameters **/
+k = 0.5      /* Decay constant */
+y0 = 100.0   /* Initial value */
+t_start = 0
+t_final = 5
+
+/** ODE Definition **/
+/* Calculates y at t=t_final */
+y_final = SolveODE("-k*y", t, t_start, t_final, y0)
+
+/** Optional: Calculate analytical solution for comparison **/
+y_analytical = y0 * Exp[-k*t_final]
+
+@$@%@EndOfEquationData@$@%@
+/* Initial guesses (optional for parameters, needed if solver used them) */
+/* y_final=10 /* Need guess if used algebraically later */
+/* y_analytical = 10 */
+@$@%@EndOfInitialVariableValueData@$@%@

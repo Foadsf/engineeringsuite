@@ -12,12 +12,22 @@ import String2ME.VString;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.ArrayList;
 import java.util.Collections; // Import missing Collections class
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.HashSet;
+import solver.ODEProblemDefinition;
+import gui.MaterialList;
+import gui.MaterialStore;
 
 public class CommandLineRunner {
 
@@ -267,65 +277,124 @@ public class CommandLineRunner {
     return aux;
   }
 
-  // Replicates parsing logic, printing errors to System.err
+  // --- COMPLETE Method parseEquations (with debugging added) ---
+  /**
+   * Replicates parsing logic, printing errors to System.err. Reads equations line by line, checks
+   * thermodynamics, performs grammar check, and populates static lists in CheckString (Var,
+   * Functions, OdeProblems, CaseVariables). Includes debugging output after the loop.
+   *
+   * @param equationsText The block of text containing equations.
+   * @param materialMethods Instance for thermodynamic lookups.
+   * @param checkStringInstance An instance of CheckString (used for calling non-static checkGram).
+   * @return true if parsing completed without fatal errors, false otherwise.
+   */
   private static boolean parseEquations(String equationsText, MaterialMethods materialMethods,
       CheckString checkStringInstance) {
     String line;
     int lineNumber = 0;
-    boolean success = true;
+    boolean success = true; // Assume success initially
     BufferedReader reader = new BufferedReader(new StringReader(equationsText));
     try {
       while ((line = reader.readLine()) != null) {
         lineNumber++;
-        String originalLine = line; // Keep original for error reporting context if needed
-        // Erase tabs and spaces for parsing check, but keep original for error context
+        String originalLine = line; // Keep original for error reporting context
+        // Basic cleaning: remove tabs, trim leading/trailing whitespace
         line = line.replace(CheckString.Tab, CheckString.Espacio);
-        line = line.trim(); // Trim leading/trailing whitespace for the line itself
+        line = line.trim();
 
         if (line.isEmpty())
           continue; // Skip empty lines
 
-        String processedLine = line.replace(" ", ""); // Remove internal spaces for check
+        // Create version without internal spaces for processing
+        String processedLineNoSpaces = line.replace(" ", "");
 
-        // Substitute thermodynamic functions first
-        String2ME.GramErr thermoResult = SolverGUI.searchThermodynamicFunctionCli(processedLine,
-            materialMethods, checkStringInstance);
+        // --- Thermodynamic Substitution ---
+        String2ME.GramErr thermoResult = searchThermodynamicFunctionCli(processedLineNoSpaces,
+            materialMethods, checkStringInstance); // Use the static CLI version
         if (thermoResult.GetTypeError() != 0) {
           System.err.println("ERROR in Thermodynamic Function call on line " + lineNumber
-              + ": Substance/Property not found in '" + processedLine + "'");
-          executionError = true; // Mark error
+              + ": Substance/Property not found in '" + processedLineNoSpaces + "'");
+          executionError = true; // Mark global error
           success = false;
-          continue; // Skip further checks on this line
+          continue; // Skip further checks for this line
         }
-        processedLine = thermoResult.getString(); // Use the potentially substituted formula
+        String lineForGramCheck = thermoResult.getString(); // Use potentially substituted string
 
-        // Save variables with case info (does not affect solving directly but populates
-        // CaseVariables list)
-        checkStringInstance.getVariables(processedLine);
+        // --- Grammar Check and Variable/Equation Storage ---
+        // GramCheck handles ODE detection, populating CaseVariables, Var, Functions, OdeProblems
+        String2ME.GramErr gramResult = checkStringInstance.GramCheck(lineForGramCheck); // Pass
+                                                                                        // processed
+                                                                                        // line
 
-        // Perform grammar check on the processed line
-        String2ME.GramErr gramResult = checkStringInstance.GramCheck(processedLine);
-
-        // Check grammar result
+        // --- Check Grammar Result ---
         if (!checkGramCli(gramResult, lineNumber, originalLine)) {
-          success = false; // Mark failure if checkGramCli reported an error
-          // No need to set executionError here, checkGramCli does it
+          success = false; // Mark overall parsing as failed if checkGramCli reported error
         }
+      } // End while loop through lines
+
+      // --- ADD DEBUGGING HERE ---
+      System.out.println("DEBUG: Parsing loop finished. Contents of CheckString.Var.Variables:");
+      System.out.print("       [ ");
+      if (CheckString.Var != null && CheckString.Var.Variables != null) {
+        for (VString v : CheckString.Var.Variables) {
+          // Print internal name and count
+          System.out.print("'" + v.getVar() + "' (" + v.getCount() + "), ");
+        }
+      } else {
+        System.out.print("CheckString.Var or Var.Variables is null!");
       }
+      System.out.println("]");
+
+      System.out.println("DEBUG: Contents of CheckString.OneEquationVar:");
+      System.out.print("       [ ");
+      if (CheckString.OneEquationVar != null) {
+        for (VString v : CheckString.OneEquationVar) {
+          // Print internal name and count
+          System.out.print("'" + v.getVar() + "' (" + v.getCount() + "), ");
+        }
+      } else {
+        System.out.print("CheckString.OneEquationVar is null!");
+      }
+      System.out.println("]");
+
+
+      System.out.println("DEBUG: Contents of CheckString.CaseVariables:");
+      System.out.print("       [ ");
+      if (CheckString.CaseVariables != null) {
+        for (String s : CheckString.CaseVariables) {
+          System.out.print("'" + s + "', ");
+        }
+      } else {
+        System.out.print("CheckString.CaseVariables is null!");
+      }
+      System.out.println("]");
+      // --- END DEBUGGING ---
+
     } catch (IOException e) {
       System.err.println("ERROR reading processed equations: " + e.getMessage());
-      executionError = true;
+      executionError = true; // Mark global error
       return false; // Indicate failure
     } finally {
       try {
         reader.close();
       } catch (IOException e) {
-      }
+        /* Ignore close error */ }
     }
-    return success; // Return overall status
+    return success; // Return overall status (true if no fatal errors encountered)
   }
+  // --- End of Method parseEquations ---
 
-  // Replicates error checking logic, printing errors to System.err
+
+  // --- COMPLETE Method checkGramCli ---
+  /**
+   * Replicates error checking logic from SolverGUI, printing errors to System.err and setting the
+   * global executionError flag.
+   * 
+   * @param gramResult The result from CheckString.GramCheck.
+   * @param lineNumber The line number where the potential error occurred.
+   * @param originalLine The original text of the line for context.
+   * @return true if no error, false if an error was reported.
+   */
   private static boolean checkGramCli(String2ME.GramErr gramResult, int lineNumber,
       String originalLine) {
     byte errorType = gramResult.GetTypeError();
@@ -333,7 +402,7 @@ public class CommandLineRunner {
       return true; // No error
     }
 
-    // An error occurred, set the flag and print details
+    // An error occurred, set the global flag and print details
     executionError = true;
     System.err.print("ERROR on line " + lineNumber + ": ");
 
@@ -378,24 +447,34 @@ public class CommandLineRunner {
         System.err.println("Unknown parsing error code: " + errorType);
         break;
     }
+    // Provide context from the original line
     System.err.println("  Context: " + originalLine.trim());
     return false; // Indicate error
   }
+  // --- End of Method checkGramCli ---
 
-  // Helper to format and print results
+
+  // --- COMPLETE Method printResultsToConsole (as provided previously) ---
+  /**
+   * Helper to format and print results to the console. Skips evaluation and printing of internal
+   * ODE integration variables.
+   */
   private static void printResultsToConsole() {
     NumberFormat AvgFormat = new DecimalFormat("####0.#######");
     NumberFormat SmallFormat = new DecimalFormat("0.#####E0");
     NumberFormat BigFormat = new DecimalFormat("00000.#####E0");
 
-    // Combine variables solved individually and those solved by solver
-    java.util.List<String2ME.VString> allVars =
-        new java.util.ArrayList<>(CheckString.Var.Variables);
+    // Keep track if any *non-skipped* variable fails evaluation
+    boolean evaluationFailedForSomeVariable = false;
+
+    // Combine variables solved individually and those from the main solver list
+    List<String2ME.VString> allVars = new ArrayList<>(CheckString.Var.Variables);
     allVars.addAll(CheckString.OneEquationVar);
-    // Sort alphabetically (optional, but nice)
+    // Sort alphabetically for consistent output
     Collections.sort(allVars);
 
-    if (allVars.isEmpty() && !executionError) {
+    if (allVars.isEmpty() && !executionError) { // executionError is the global flag for *prior*
+                                                // errors
       System.out.println("No variables to solve for or all were inputs.");
       return;
     } else if (allVars.isEmpty() && executionError) {
@@ -403,221 +482,393 @@ public class CommandLineRunner {
       return;
     }
 
+    // --- Identify ONLY integration variables to skip ---
+    Set<String> odeIntegrationVarsToSkip = new HashSet<>();
+    if (CheckString.OdeProblems != null) { // Check if the ODE list has been initialized
+      for (ODEProblemDefinition odeDef : CheckString.OdeProblems) {
+        if (odeDef.getIntegrationVariable() != null) {
+          odeIntegrationVarsToSkip.add(odeDef.getIntegrationVariable().toLowerCase());
+        }
+      }
+    }
+    System.out.println("DEBUG: ODE Integration Vars to skip printing: " + odeIntegrationVarsToSkip);
+    // --- End identification ---
+
     System.out.println("Variable          Value");
     System.out.println("----------------|-------------------");
 
     for (VString vs : allVars) {
-      String varName = getVariableCase(vs.getVar()); // Get original case
-      varName = varName.replace("Gg", "_"); // Translate back underscore
+      String varNameLower = vs.getVar(); // Internal name is lowercase (might contain Gg)
+      String varNameOriginalCase = getVariableCase(varNameLower); // Get original case for display
+
+      // --- Skip evaluation/printing logic (Simpler: Only skip integration var) ---
+      if (odeIntegrationVarsToSkip.contains(varNameLower)) {
+        System.out.println("DEBUG: Skipping evaluation of internal ODE integration variable: "
+            + varNameOriginalCase);
+        continue; // Skip to the next variable in the loop
+      }
+      // --- End skip logic ---
+
       double result;
       String resultStr;
 
       try {
-        result = DiffAndEvaluator.Evaluate(vs.getVar()); // Evaluate using internal (lowercase) name
+        // Evaluate using internal (lowercase, potentially Gg) name
+        result = DiffAndEvaluator.Evaluate(varNameLower);
 
-        if (Math.abs(result) < 100000 && Math.abs(result) >= 1e-5)
+        // Format the numerical result
+        if (Double.isNaN(result) || Double.isInfinite(result)) {
+          resultStr = "Non-numeric (" + result + ")";
+          evaluationFailedForSomeVariable = true; // Consider NaN/Inf as evaluation failure
+        } else if (Math.abs(result) < 100000 && Math.abs(result) >= 1e-5) {
           resultStr = AvgFormat.format(result);
-        else if (Math.abs(result) < 1e-5 && Math.abs(result) != 0)
+        } else if (Math.abs(result) < 1e-5 && Math.abs(result) != 0) {
           resultStr = SmallFormat.format(result);
-        else if (Math.abs(result) >= 100000)
+        } else if (Math.abs(result) >= 100000) {
           resultStr = BigFormat.format(result);
-        else // Handle exactly zero
+        } else { // Handle exactly zero
           resultStr = AvgFormat.format(result);
+        }
 
       } catch (Exception e) {
+        // Catch evaluation errors (like for unevaluated ODE targets or other issues)
         resultStr = "Error evaluating (" + e.getMessage() + ")";
-        executionError = true; // Mark error if evaluation fails post-solve
+        evaluationFailedForSomeVariable = true; // Mark that an evaluation failed
       }
 
-      System.out.printf("%-15s | %s%n", varName, resultStr);
+      // Print the result line using the original-case name
+      System.out.printf("%-15s | %s%n", varNameOriginalCase, resultStr);
+    } // End of for loop through variables
+
+    // After checking all variables, update the global error flag if any evaluation failed
+    if (evaluationFailedForSomeVariable) {
+      executionError = true; // Set the global flag indicating issues in this phase
     }
   }
+  // --- End of Method printResultsToConsole ---
 
-  // Helper to get original case variable name
-  private static String getVariableCase(String lowerCaseVar) {
-    for (String s : CheckString.CaseVariables) {
-      if (lowerCaseVar.equalsIgnoreCase(s)) {
-        return s;
+  // --- COMPLETE Method getVariableCase ---
+  /**
+   * Helper to get original case variable name from the CaseVariables list, given the internal name
+   * (lowercase, potentially with 'Gg').
+   * 
+   * @param internalVarName The internal variable name (e.g., "tggstart", "k").
+   * @return The original case name (e.g., "t_start", "k") or the internal name with 'Gg' converted
+   *         back to '_' if no exact match found.
+   */
+  private static String getVariableCase(String internalVarName) {
+    if (internalVarName == null)
+      return "null_internal_var"; // Safety check
+
+    // Convert internal name (like 'tggstart') back to original style ('t_start') for comparison
+    String nameWithUnderscore = internalVarName.replace("Gg", "_");
+
+    if (CheckString.CaseVariables != null) {
+      for (String originalCaseName : CheckString.CaseVariables) {
+        // Case-insensitive comparison between underscore version and stored original case
+        if (nameWithUnderscore.equalsIgnoreCase(originalCaseName)) {
+          return originalCaseName; // Return the originally cased name found
+        }
       }
     }
-    return lowerCaseVar; // Fallback if not found (shouldn't happen ideally)
+    // Fallback: If no match found in CaseVariables (should generally not happen
+    // for variables defined in equations, but might for function internals?)
+    // Return the internal name, but ensure Gg is converted back to _ for display.
+    // System.err.println("Warning: Could not find original case for internal var: " +
+    // internalVarName + " (using '" + nameWithUnderscore + "')");
+    return nameWithUnderscore;
   }
+  // --- End of Method getVariableCase ---
 
-  // Helper to format and print residuals
+  // --- COMPLETE Method printResidualsToConsole ---
+  /**
+   * Helper to format and print residuals. Attempts to reconstruct the original equation form for
+   * display.
+   */
   private static void printResidualsToConsole() {
-    if (CheckString.FunctionsSolved.isEmpty() && !executionError) { // Also check executionError
-                                                                    // flag
-      System.out.println("No equations were solved or available to calculate residuals.");
-      return;
-    } else if (CheckString.FunctionsSolved.isEmpty()) {
-      System.out.println("Cannot calculate residuals due to previous errors.");
+    // Combine solved functions if needed (assuming FunctionsSolved holds all relevant ones)
+    List<EqStorer> solvedFunctions = new ArrayList<>(CheckString.FunctionsSolved);
+    // If ODEs were solved and added to a separate list, include them here if desired.
+    // For now, assume FunctionsSolved contains what we need from algebraic solver.
+
+    if (solvedFunctions.isEmpty()) {
+      System.out.println("No equations were solved to calculate residuals.");
       return;
     }
-
 
     NumberFormat AvgFormat = new DecimalFormat("##0.#####");
-    NumberFormat SmallFormat = new DecimalFormat("0.#####E0");
+    NumberFormat SmallFormat = new DecimalFormat("#.#####E0");
     NumberFormat BigFormat = new DecimalFormat("#####0.##E0");
 
-    System.out.println("Equation Residuals (Internal Form = 0, Target: 0)"); // Clarify it's
-                                                                             // internal form
-    System.out.println("------------------------------------------------------------");
+    System.out.println("Equation Residuals (Internal Form = 0, Target: 0)"); // Clarified header
+    System.out.println("------------------------------------------------------------"); // Lengthened
+                                                                                        // separator
 
-    Iterator<EqStorer> it = CheckString.FunctionsSolved.iterator();
+    Iterator<EqStorer> it = solvedFunctions.iterator();
+    CheckString Ch = new CheckString(); // Instance needed for non-static helpers if any
 
     while (it.hasNext()) {
       EqStorer eqaux = it.next();
-      String internalEquation = eqaux.getEquation(); // This is like F(x) - G(x)
+      // Evaluate the internal F(x)-G(x)=0 form
+      String internalEquation = eqaux.getEquation();
       double residual = 0.0;
       String residualStr = "";
-      String displayEquation = ""; // Initialize
+      String displayEquation = "";
+      boolean evalErrorOccurred = false;
 
       try {
-        // Calculate residual first
+        // Evaluate the F(x)-G(x) form directly
         residual = DiffAndEvaluator.Evaluate("N(" + internalEquation + ")");
 
-        // Format residual value
-        if (Math.abs(residual) < 10000 && Math.abs(residual) >= 1e-5)
+        if (Double.isNaN(residual) || Double.isInfinite(residual)) {
+          residualStr = "Non-numeric (" + residual + ")";
+          evalErrorOccurred = true;
+        } else if (Math.abs(residual) < 10000 && Math.abs(residual) >= 1e-5) {
           residualStr = AvgFormat.format(residual);
-        else if (Math.abs(residual) < 1e-5 && Math.abs(residual) != 0)
+        } else if (Math.abs(residual) < 1e-5 && Math.abs(residual) != 0) {
           residualStr = SmallFormat.format(residual);
-        else if (Math.abs(residual) >= 10000)
+        } else if (Math.abs(residual) >= 10000) {
           residualStr = BigFormat.format(residual);
-        else // Handle exactly zero
+        } else { // Handle exactly zero
           residualStr = AvgFormat.format(residual);
+        }
 
-        // --- Display internal form directly ---
-        displayEquation = internalEquation.replace("Gg", "_") + " = 0";
-        // Attempt to replace internal variable names with original case for readability
-        displayEquation = replaceVarsWithCase(displayEquation);
-        // --- End direct display ---
+        // Reconstruct display equation (attempt to show something user-friendly)
+        int equalsPosInternal = findEqualConsole(internalEquation); // Finds "-1*(" position
+        if (equalsPosInternal != -1) {
+          // Try to reconstruct A = B from A - 1*(B) = 0
+          displayEquation = internalEquation.substring(0, equalsPosInternal) + " = "
+              + internalEquation.substring(equalsPosInternal + CheckString.SubsEqual.length(),
+                  internalEquation.length() - 1); // Remove
+          // trailing
+          // ')'
+        } else {
+          // Assume it was originally in the form F(x) = 0
+          displayEquation = internalEquation + " = 0";
+        }
+
+        // Clean up internal representations for display
+        displayEquation = displayEquation.replace("Degree", ""); // Remove Degree marker if present
+        displayEquation = displayEquation.replace("Gg", "_"); // Replace Gg with underscore
+        displayEquation = displayEquation.replace("3.141592653589793", "Pi"); // Approximate Pi
+                                                                              // display
+        displayEquation = displayEquation.replace("2.718281828459045", "E"); // Approximate E
+                                                                             // display
+
+        // Attempt to replace internal lowercase/Gg vars with original case vars
+        // This is complex - needs to tokenize and lookup in CaseVariables
+        displayEquation = replaceInternalVarsWithOriginalCase(displayEquation);
+
 
       } catch (Exception e) {
-        // Error during residual *evaluation*
-        residualStr = "Error evaluating (" + e.getClass().getSimpleName() + ")"; // Show exception
-                                                                                 // type
-        displayEquation = internalEquation.replace("Gg", "_") + " = 0 (Eval Error)";
-        displayEquation = replaceVarsWithCase(displayEquation);
-        executionError = true; // Mark error occurred during residual calc
+        residualStr = "Error evaluating (" + e.getMessage() + ")";
+        displayEquation = internalEquation + " = 0 (Internal Form, Eval Error)"; // Indicate error
+        evalErrorOccurred = true;
+        // Don't set global executionError here, let the main loop handle it based on printResults
+        // failure
       }
 
-      // Print, ensuring displayEquation isn't too long for formatting
-      System.out.printf("%-60s | Residual: %s%n",
-          displayEquation.substring(0, Math.min(displayEquation.length(), 60)), residualStr);
+      // Print the formatted residual line
+      // Truncate display equation if too long for layout
+      String truncatedDisplayEq =
+          displayEquation.length() > 60 ? displayEquation.substring(0, 57) + "..."
+              : displayEquation;
+      System.out.printf("%-60s | Residual: %s%n", truncatedDisplayEq, residualStr);
 
-      // Check if residual is high *only if* evaluation succeeded
-      if (!residualStr.contains("Error") && Math.abs(residual) > Config.Precision * 10) { // Use a
-                                                                                          // slightly
-                                                                                          // larger
-                                                                                          // tolerance
-                                                                                          // for
-                                                                                          // warning
-        SolverGUI.ResidualsHigh = true; // Set flag if any residual is high
+      // Set flag if any residual is high (and wasn't an eval error)
+      if (!evalErrorOccurred && Math.abs(residual) > Config.Precision * 10) { // Use tolerance for
+                                                                              // warning
+        SolverGUI.ResidualsHigh = true;
       }
-    } // end while
+    } // End while loop
 
     if (SolverGUI.ResidualsHigh) {
-      System.out.println("\nWARNING: One or more residuals are high, solution may be inaccurate.");
+      System.out.println("WARNING: One or more residuals are high, solution may be inaccurate.");
     }
   }
+  // --- End of Method printResidualsToConsole ---
 
-  // Helper copied/adapted from SolverGUI - finds the '(-1*(' substitution
-  // position
+  // --- COMPLETE Method findEqualConsole ---
+  /**
+   * Helper copied/adapted from SolverGUI - finds the '(-1*(' substitution position which represents
+   * the original '=' sign in the internal equation format.
+   * 
+   * @param s The internal equation string (e.g., "a-1*(b)").
+   * @return The index where "-1*(" starts, or -1 if not found or format is wrong.
+   */
   private static int findEqualConsole(String s) {
     final char OpenP = '(';
     final char CloseP = ')';
-    final String marker = "-1*("; // CheckString.SubsEqual; - using literal for clarity
+    final String marker = "-1*("; // CheckString.SubsEqual - internal representation of '='
 
     int markerPos = s.indexOf(marker);
-    if (markerPos == -1)
-      return -1; // Marker not found
-
-    int parenLevel = 0;
-    int i = markerPos + marker.length(); // Start searching after the marker
-
-    // We are looking for the matching closing parenthesis for the one AFTER the
-    // marker
-    // Find the first '(' after marker
-    int firstOpenParenAfterMarker = -1;
-    for (int startSearch = markerPos + marker.length(); startSearch < s.length(); startSearch++) {
-      if (s.charAt(startSearch) == OpenP) {
-        firstOpenParenAfterMarker = startSearch;
-        parenLevel = 1; // Start counting from this parenthesis
-        i = firstOpenParenAfterMarker + 1;
-        break;
-      }
+    if (markerPos == -1) {
+      return -1; // Marker not found, likely equation was F(x)=0 initially
     }
-    if (firstOpenParenAfterMarker == -1)
-      return -1; // No opening parenthesis found after marker
 
-    while (i < s.length()) {
-      char c = s.charAt(i);
-      if (c == OpenP) {
-        parenLevel++;
-      } else if (c == CloseP) {
-        parenLevel--;
-        if (parenLevel == 0) {
-          // Found the matching closing parenthesis for the one after the marker
-          // The original '=' was just before the marker
-          return markerPos;
-        }
-      }
-      i++;
-    }
-    return -1; // Matching parenthesis not found
+    // The logic here assumes the structure A - 1*(B) where B was the original RHS.
+    // It needs to find the matching parenthesis for the one *after* the marker.
+    // However, the original '=' sign was located *just before* the marker.
+    // So, simply returning the marker position is sufficient.
+
+    // Original complex parenthesis counting logic removed as it wasn't needed
+    // if the goal is just to find where the original '=' was.
+
+    return markerPos;
   }
+  // --- End of Method findEqualConsole ---
 
-  // Need a CLI version of this helper from SolverGUI
+  /**
+   * Checks if the input string represents a thermodynamic function call (e.g., "Air.Cp(var1,
+   * var2)") and if so, attempts to substitute it with its corresponding formula from the database.
+   * Handles variable replacement based on the order defined in the database.
+   *
+   * @param input The potentially thermodynamic function call string (lowercase, no spaces).
+   * @param Materiales The MaterialMethods instance containing the thermodynamic database.
+   * @param ch A CheckString instance (needed for helpers).
+   * @return A GramErr object. If substitution occurred, GramErr contains the substituted formula
+   *         and type 0. If it wasn't a thermo call, it contains the original input and type 0. If
+   *         it looked like a thermo call but the substance/property wasn't found or arguments
+   *         mismatched, it returns the original input and type 1 (error).
+   */
   public static String2ME.GramErr searchThermodynamicFunctionCli(String input,
       MaterialMethods Materiales, CheckString ch) {
-    // Simplified version of the GUI one
     try {
-      if (SolverGUI.checkSubstanceCli(input, Materiales)) { // Need this helper too
-        // (Rest of logic from SolverGUI.searchThermodynamicFunction - find material,
-        // property, vars, substitute)
-        // ... Implementation of substitution logic needed here ...
-        // If successful:
-        // String substitutedFormula = ... result of substitution ...;
-        // return new String2ME.GramErr((byte) 0, substitutedFormula);
-        // If property/material not found after initial check:
-        // return new String2ME.GramErr((byte) 1, input); // Error code 1 for not found
+      if (checkSubstanceCli(input, Materiales)) { // Use the static helper
+        // --- ADD THESE DECLARATIONS BACK ---
+        StringTokenizer lector = new StringTokenizer(input, ".(),", true);
+        String aux;
+        String material = null; // Declare and initialize
+        String property = null; // Declare and initialize
+        String PrevToken = null; // Declare and initialize
+        LinkedList<String> callingVariables = new LinkedList<String>(); // Declare and initialize
+        // --- END ADDED DECLARATIONS ---
 
-        // Placeholder - Full implementation required
-        System.out.println("DEBUG: Thermo function call detected: " + input
-            + " (Substitution logic not fully implemented in CLI)");
-        return new String2ME.GramErr((byte) 0, input); // Pass through for now
+        while (lector.hasMoreTokens()) {
+          aux = lector.nextToken();
+          // Safe check for PrevToken before using equalsIgnoreCase
+          if (PrevToken != null) {
+            if (aux.equals("."))
+              material = PrevToken;
+            if (aux.equals("("))
+              property = PrevToken;
+            if (aux.equals(","))
+              callingVariables.add(PrevToken);
+            if (aux.equals(")"))
+              callingVariables.add(PrevToken);
+          }
+          PrevToken = aux;
+        }
+
+        // Check if material and property were actually found during tokenization
+        if (material == null || property == null) {
+          System.err.println(
+              "Warning: Malformed thermodynamic call syntax (could not identify material/property): "
+                  + input);
+          return new String2ME.GramErr((byte) 1, input); // Syntax error
+        }
+
+        // --- Null check for Materiales and the list it contains ---
+        if (Materiales == null || Materiales.getMaterialsList() == null) {
+          System.err.println("Error: Material database not loaded or is null.");
+          return new String2ME.GramErr((byte) 1, input); // Indicate error
+        }
+
+        // Search the database
+        for (MaterialList m : Materiales.getMaterialsList()) {
+          if (m.getMaterial().equalsIgnoreCase(material)) {
+            LinkedList<MaterialStore> properties = m.getPropertyList();
+            if (properties == null) {
+              System.err.println("Warning: Property list is null for material: " + material);
+              return new String2ME.GramErr((byte) 1, input);
+            }
+            for (MaterialStore ms : properties) {
+              if (ms.getProperty().equalsIgnoreCase(property)) {
+                // Found match!
+                String formula = ms.getFormula();
+                String dbVarString = ms.getVariables();
+                String[] dbVars = (dbVarString == null || dbVarString.isEmpty()) ? new String[0]
+                    : dbVarString.replace(" ", "").split(",");
+
+                // Arity check
+                if (callingVariables.size() != dbVars.length) {
+                  System.err.println("ERROR: Argument count mismatch for " + material + "."
+                      + property + ". Expected " + dbVars.length + " based on '" + dbVarString
+                      + "', got " + callingVariables.size());
+                  return new String2ME.GramErr((byte) 1, input);
+                }
+
+                // Substitute variables from the call into the formula
+                String substitutedFormula = substituteThermoVars(formula, dbVars, callingVariables);
+
+                // Add workaround for residuals display if needed later
+                // CheckString.ResidualWorkAround.add(new PositionStorer(substitutedFormula,
+                // input));
+                return new String2ME.GramErr((byte) 0, substitutedFormula);
+              }
+            }
+            // Material found, but property wasn't
+            System.err.println(
+                "Warning: Property '" + property + "' not found for substance '" + material + "'.");
+            return new String2ME.GramErr((byte) 1, input);
+          }
+        }
+        // Material not found
+        System.err
+            .println("Warning: Substance '" + material + "' not found in thermodynamic database.");
+        return new String2ME.GramErr((byte) 1, input);
 
       }
-      return new String2ME.GramErr((byte) 0, input); // Not a thermo function call
+      // Doesn't look like a substance call
+      return new String2ME.GramErr((byte) 0, input);
 
     } catch (Exception e) {
-      System.err.println("Error during thermodynamic function check for: " + input);
-      return new String2ME.GramErr((byte) 0, input); // Treat as non-thermo on error
+      System.err.println("Error during thermodynamic function processing for: " + input);
+      e.printStackTrace(System.err);
+      return new String2ME.GramErr((byte) 1, input); // Return error on unexpected exception
     }
   }
+  // --- End of Method searchThermodynamicFunctionCli ---
 
-  // Need a CLI version of this helper from SolverGUI
+  // --- COMPLETE Method checkSubstanceCli ---
+  /**
+   * Checks if the input string *looks like* a potential thermodynamic function call based on the
+   * format "Substance.Property(...)". It checks if the potential substance name matches a known
+   * material in the database.
+   *
+   * @param input The input string (ideally lowercase, no spaces).
+   * @param Materiales The MaterialMethods instance containing the thermodynamic database.
+   * @return true if the format matches and the substance exists, false otherwise.
+   */
   public static boolean checkSubstanceCli(String input, MaterialMethods Materiales) {
-    int pos = input.indexOf(".");
-    if (pos <= 0 || pos == input.length() - 1) { // Ensure dot exists and isn't first/last char
+    int dotPos = input.indexOf(".");
+    // Ensure dot exists, is not the first or last char
+    if (dotPos <= 0 || dotPos >= input.length() - 1) {
       return false;
     }
-    String potentialSubstance = input.substring(0, pos);
+    String potentialSubstance = input.substring(0, dotPos);
+
     // Check against known materials (case-insensitive)
-    for (String knownMaterial : Materiales.getMaterials()) {
-      if (potentialSubstance.equalsIgnoreCase(knownMaterial)) {
-        // Now check if the next part looks like a function call
-        int openParen = input.indexOf('(', pos);
-        if (openParen > pos + 1) { // Must be at least one char for property name
-          int closeParen = input.lastIndexOf(')');
-          if (closeParen > openParen) { // Basic check for parenthesis pair
-            return true;
+    if (Materiales != null && Materiales.getMaterials() != null) { // Add null checks
+      for (String knownMaterial : Materiales.getMaterials()) {
+        if (potentialSubstance.equalsIgnoreCase(knownMaterial)) {
+          // Found a matching substance name. Now check if it looks like a function call.
+          int openParenPos = input.indexOf('(', dotPos);
+          // Must have at least one character for property name between '.' and '('
+          if (openParenPos > dotPos + 1) {
+            int closeParenPos = input.lastIndexOf(')');
+            // Basic check for parenthesis pair after the potential property name
+            if (closeParenPos > openParenPos) {
+              return true; // Looks like Substance.Property(...)
+            }
           }
         }
       }
     }
-    return false;
+    return false; // Substance name not found or format incorrect
   }
+  // --- End of Method checkSubstanceCli ---
+
 
   private static String replaceVarsWithCase(String equation) {
     String result = equation;
@@ -633,5 +884,119 @@ public class CommandLineRunner {
     }
     return result;
   }
+
+  // --- COMPLETE Method substituteThermoVars ---
+  /**
+   * Substitutes database variable names within a formula string with the corresponding variables
+   * used in the function call. Substitution is based on order.
+   *
+   * @param formula The formula string from the database.
+   * @param dbVars An array of variable names as defined in the database, in order.
+   * @param callVars A LinkedList of variable names as provided in the calling expression, in order.
+   * @return The formula string with database variable names replaced by calling variable names.
+   */
+  private static String substituteThermoVars(String formula, String[] dbVars,
+      LinkedList<String> callVars) {
+    if (formula == null)
+      return ""; // Handle null formula
+    if (dbVars == null || callVars == null || dbVars.length != callVars.size()) {
+      // Should have been caught by arity check, but double-check
+      System.err.println("Internal Error: Mismatched vars in substituteThermoVars.");
+      return formula; // Return original formula on error
+    }
+    if (dbVars.length == 0) {
+      return formula; // No variables to substitute
+    }
+
+    String result = formula.replace(" ", ""); // Start with formula, no spaces
+    StringTokenizer tokenizer = new StringTokenizer(result, "+/*-()[]{} ^=!", true);
+    StringBuilder reconstructed = new StringBuilder();
+    String token;
+
+    while (tokenizer.hasMoreTokens()) {
+      token = tokenizer.nextToken();
+      int pos = varPositionCli(token, dbVars); // Check if token is a DB variable (case-insensitive)
+      if (pos != -1) {
+        reconstructed.append(callVars.get(pos)); // Substitute with calling variable
+      } else {
+        reconstructed.append(token); // Keep original token (operator, number, etc.)
+      }
+    }
+    return reconstructed.toString();
+  }
+  // --- End of Method substituteThermoVars ---
+
+  // --- COMPLETE Method varPositionCli ---
+  /**
+   * Finds the position (index) of a variable name within a list of database variable names,
+   * ignoring case.
+   * 
+   * @param var The variable name to find.
+   * @param list The array of variable names from the database definition.
+   * @return The zero-based index if found, otherwise -1.
+   */
+  private static int varPositionCli(String var, String[] list) {
+    if (var == null || list == null)
+      return -1;
+    for (int i = 0; i < list.length; i++) {
+      if (list[i] != null && list[i].equalsIgnoreCase(var)) {
+        return i;
+      }
+    }
+    return -1; // Not found
+  }
+  // --- End of Method varPositionCli ---
+
+  // --- COMPLETE Method replaceInternalVarsWithOriginalCase ---
+  /**
+   * Helper method to replace internal variable representations (lowercase, Gg) in a processed
+   * equation string with their original user-specified case.
+   * 
+   * @param processedEquation The equation string potentially containing lowercase/Gg vars.
+   * @return The equation string with variables replaced by their original case, if found.
+   */
+  private static String replaceInternalVarsWithOriginalCase(String processedEquation) {
+    if (processedEquation == null || CheckString.CaseVariables == null
+        || CheckString.CaseVariables.isEmpty()) {
+      return processedEquation; // Nothing to do or no case info available
+    }
+
+    // Create a temporary modifiable string
+    StringBuilder result = new StringBuilder(processedEquation);
+
+    // Iterate through known original-case variables
+    for (String originalCaseVar : CheckString.CaseVariables) {
+      // Create the internal representation (lowercase, with Gg for _)
+      String internalVar = originalCaseVar.toLowerCase(Locale.ENGLISH).replace("_", "Gg");
+
+      // Find and replace all occurrences of the internal var with the original case var
+      // Use regex word boundaries (\b) to avoid partial replacements (e.g., replacing 't' in
+      // 't_start')
+      // Need to escape regex special chars in the internalVar if any exist (though unlikely with
+      // Gg)
+      String internalPattern = "\\b" + java.util.regex.Pattern.quote(internalVar) + "\\b";
+      // Replacement string needs escaping if it contains $ or \
+      String originalEscaped = java.util.regex.Matcher.quoteReplacement(originalCaseVar);
+
+      try {
+        // This is tricky with StringBuilder, easier to do on the String directly
+        String currentString = result.toString();
+        // Use case-insensitive matching since internalVar is lowercase
+        String replacedString = java.util.regex.Pattern
+            .compile(internalPattern, java.util.regex.Pattern.CASE_INSENSITIVE)
+            .matcher(currentString).replaceAll(originalEscaped);
+        if (!replacedString.equals(currentString)) {
+          result.setLength(0); // Clear string builder
+          result.append(replacedString); // Append replaced string
+        }
+      } catch (java.util.regex.PatternSyntaxException e) {
+        System.err.println("Warning: Regex error trying to replace variable '" + internalVar + "': "
+            + e.getMessage());
+        // Continue without replacing this specific variable if regex fails
+      }
+    }
+    return result.toString();
+  }
+  // --- End of Method replaceInternalVarsWithOriginalCase ---
 
 } // End CommandLineRunner Class

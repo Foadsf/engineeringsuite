@@ -1,0 +1,20 @@
+/* Example 16: Simple ODE - Derivative leading to Gaussian */
+/* Solves dy/dt = -2*t*y */
+/* Analytical solution: y(t) = y0 * Exp[-t^2] */
+
+/** Parameters **/
+y0 = 1.0      /* Initial value */
+t_start = 0
+t_final = 2.5
+
+/** ODE Definition **/
+/* Calculates y at t=t_final */
+y_final = SolveODE("-2*t*y", t, t_start, t_final, y0)
+
+/** Optional: Calculate analytical solution for comparison **/
+y_analytical = y0 * Exp[-t_final^2]
+
+@$@%@EndOfEquationData@$@%@
+/* y_final = 0.1 */
+/* y_analytical = 0.1 */
+@$@%@EndOfInitialVariableValueData@$@%@

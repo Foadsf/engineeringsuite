@@ -18,8 +18,8 @@ public class MaterialMethods {
 	/**
 	 * Name of the file
 	 */
-	public static final String ThermodynamicalFile = Config.AbsolutePath
-			+ "ThermodynamicalProperties.txt";
+	public static final String ThermodynamicalFile =
+			Config.AbsolutePath + "ThermodynamicalProperties.txt";
 
 	private Character cube = (char) 127;
 
@@ -28,7 +28,24 @@ public class MaterialMethods {
 	public MaterialMethods() {
 		Materials = new LinkedList<MaterialList>();
 		getTree();
-		Collections.sort(this.Materials);
+		if (this.Materials != null) { // Add null check after getTree potentially failing
+			Collections.sort(this.Materials);
+		} else {
+			System.err.println(
+					"Warning: Materials list is null after getTree() in MaterialMethods constructor.");
+			this.Materials = new LinkedList<>(); // Initialize to empty list to avoid later NPEs
+		}
+	}
+
+	/**
+	 * Provides public access to the list of materials.
+	 * 
+	 * @return The linked list of MaterialList objects.
+	 */
+	public LinkedList<MaterialList> getMaterialsList() {
+		// Return a defensive copy if modification by callers is a concern,
+		// otherwise return the direct list. For now, return direct list.
+		return this.Materials;
 	}
 
 	/**
@@ -39,8 +56,8 @@ public class MaterialMethods {
 	 * @param variable
 	 * @param Note
 	 */
-	protected void SaveMaterial(String Material, String Property,
-			String formula, String variable, String Note) {
+	protected void SaveMaterial(String Material, String Property, String formula, String variable,
+			String Note) {
 		try {
 			String text = this.getString();
 			text += "Material: " + Material + ";" + Config.JumpLine;
@@ -64,8 +81,8 @@ public class MaterialMethods {
 	}
 
 	/**
-	 * Adds the input information to the Material List. This only saves the
-	 * information in Ram. Not to the file.
+	 * Adds the input information to the Material List. This only saves the information in Ram. Not to
+	 * the file.
 	 * 
 	 * @param Material
 	 * @param Property
@@ -73,11 +90,10 @@ public class MaterialMethods {
 	 * @param variable
 	 * @param Note
 	 */
-	public void saveTreeAndMaterial(String Material, String Property,
-			String formula, String variable, String Note) {
+	public void saveTreeAndMaterial(String Material, String Property, String formula, String variable,
+			String Note) {
 		// Add the material to the List
-		this.AddMaterial(Material, new MaterialStore(Property, formula,
-				variable, Note));
+		this.AddMaterial(Material, new MaterialStore(Property, formula, variable, Note));
 		// Save
 		this.saveTree();
 
@@ -159,24 +175,24 @@ public class MaterialMethods {
 			for (String s : tree) {
 				count = 0;
 				if (s.length() > 40) {// Material:+Property:+Variable:+Formula:+Note:
-										// = 41 characters
+					// = 41 characters
 					while (count < 5) {
 						if (count < 4) {
 							start = s.indexOf(":") + 2;
 							end = s.indexOf(";");
 							switch (count) {
-							case 0:
-								Material = s.substring(start, end);
-								break;
-							case 1:
-								Property = s.substring(start, end);
-								break;
-							case 2:
-								Formula = s.substring(start, end);
-								break;
-							case 3:
-								Variables = s.substring(start, end);
-								break;
+								case 0:
+									Material = s.substring(start, end);
+									break;
+								case 1:
+									Property = s.substring(start, end);
+									break;
+								case 2:
+									Formula = s.substring(start, end);
+									break;
+								case 3:
+									Variables = s.substring(start, end);
+									break;
 							}
 							s = s.substring(end + 1);
 
@@ -201,8 +217,8 @@ public class MaterialMethods {
 	}
 
 	/**
-	 * If the Material is already in the list then the property will be added.
-	 * If not the new material with the property will be added to the list
+	 * If the Material is already in the list then the property will be added. If not the new material
+	 * with the property will be added to the list
 	 * 
 	 * @param Material
 	 * @param store
@@ -224,37 +240,41 @@ public class MaterialMethods {
 	}
 
 	/**
-	 * @return A list with the variables
+	 * @return A list with the names of the materials.
 	 */
-	public LinkedList<String> getMaterials() {
+	public LinkedList<String> getMaterials() { // Make public if needed externally
 		LinkedList<String> aux = new LinkedList<String>();
-		for (MaterialList m : this.Materials)
-			aux.add(m.getMaterial());
-
+		if (this.Materials != null) { // Add null check
+			for (MaterialList m : this.Materials)
+				aux.add(m.getMaterial());
+		}
 		return aux;
 	}
 
 	/**
-	 * @return A list with the variables
+	 * @return A list with the properties for a given material.
 	 */
-	public LinkedList<String> getProperties(String material) {
-		for (MaterialList m : this.Materials)
-			if (m.getMaterial().equalsIgnoreCase(material))
-				return m.getProperties();
-
+	public LinkedList<String> getProperties(String material) { // Make public if needed externally
+		if (this.Materials != null) { // Add null check
+			for (MaterialList m : this.Materials)
+				if (m.getMaterial().equalsIgnoreCase(material))
+					return m.getProperties();
+		}
 		return null;
-
 	}
 
 	/**
-	 * 
+	 *
 	 * @param material
 	 * @return A List with all the properties of the material
 	 */
-	public LinkedList<MaterialStore> getMaterial(String material) {
-		for (MaterialList m : this.Materials)
-			if (m.getMaterial().equalsIgnoreCase(material))
-				return m.getPropertyList();
+	public LinkedList<MaterialStore> getMaterial(String material) { // Make public if needed
+																																	// externally
+		if (this.Materials != null) { // Add null check
+			for (MaterialList m : this.Materials)
+				if (m.getMaterial().equalsIgnoreCase(material))
+					return m.getPropertyList();
+		}
 		return null;
 	}
 

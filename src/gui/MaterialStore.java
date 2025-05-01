@@ -1,49 +1,55 @@
 package gui;
 
 /**
- * Class that store two string. Used to store a formula in a String and a note
- * about that formula; For example the units of the formula;
- * 
+ * Class that store two string. Used to store a formula in a String and a note about that formula;
+ * For example the units of the formula;
+ *
  * @author Pablo Salinas
- * 
+ *
  */
-class MaterialStore {
+public class MaterialStore {
 	private String _Property;
 	private String _Formula;
 	private String _Note;
 	private String _Variables;
 
-	public MaterialStore(String Property, String formula, String Variables,
-			String note) {
+	// Constructor can remain default/package-private unless needed elsewhere
+	public MaterialStore(String Property, String formula, String Variables, String note) {
 		this._Formula = formula;
 		this._Note = note;
 		this._Variables = Variables;
 		this._Property = Property;
 	}
 
+	// Constructor can remain default/package-private unless needed elsewhere
 	public MaterialStore(String Property, String formula) {
 		this._Formula = formula;
 		this._Note = "";
 		this._Variables = "";
-		this._Variables = Property;
+		this._Property = Property; // Corrected: Assign Property here too
 	}
 
-	protected String getFormula() {
+	// ---- CHANGE TO PUBLIC ----
+	public String getFormula() {
 		return this._Formula;
 	}
 
-	protected String getNote() {
+	// ---- CHANGE TO PUBLIC ---- (Added for completeness, might be useful)
+	public String getNote() {
 		return this._Note;
 	}
 
-	protected String getVariables() {
+	// ---- CHANGE TO PUBLIC ----
+	public String getVariables() {
 		return this._Variables;
 	}
 
-	protected String getProperty() {
+	// ---- CHANGE TO PUBLIC ----
+	public String getProperty() {
 		return this._Property;
 	}
 
+	// Setters can remain protected/default unless needed externally
 	protected void setFormula(String formula) {
 		this._Formula = formula;
 	}

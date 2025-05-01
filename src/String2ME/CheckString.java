@@ -1,9 +1,11 @@
 package String2ME;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.StringTokenizer;
 
 import solver.PrepareUncmin;
@@ -85,67 +87,58 @@ public class CheckString {
 
 
 	/**
-	 * The input string can't contain comments, use before calling this method SolverGUI.cleanComments
+	 * Performs grammatical and syntactical checks on an equation string.
 	 *
-	 * @param cadena The input equation string.
+	 * @param originalCadena The original line string with original casing and spaces.
+	 * @param processedCadena The line string processed for parsing (lowercase, no spaces, thermo subs
+	 *        done, no tabs).
 	 * @return A GramErr object indicating success (0) or the type of error.
 	 */
-	public GramErr GramCheck(String cadena) {
-
-		// Store original line before any modification for potential ODE parsing
-		String originalCadena = cadena;
+	public GramErr GramCheck(String originalCadena, String processedCadena) {
 
 		// --- START ODE CHECK ---
-		// Basic cleanup for ODE check (lowercase, no spaces - might need refinement)
-		String processedCadenaForODECheck = cadena.toLowerCase().replace(" ", "").replace(Tab, Espacio);
-		if (parseAsODE(originalCadena, processedCadenaForODECheck)) {
-			// If it was successfully parsed as an ODE, we are done with this line
-			// Return success (0) but don't add to algebraic Functions list later
-			System.out.println("DEBUG: Line treated as ODE, skipping algebraic parse: " + originalCadena);
-			return new GramErr((byte) 0); // Signal success, ODE handled elsewhere
+		// Perform ODE check BEFORE modifying '=' or '_' for algebraic processing.
+		// We still use the lowercase, space-removed 'cadena' input for the check itself,
+		// but we need an unmodified version for context/target var extraction if it IS an ODE.
+		// This assumes the CALLER (CommandLineRunner.parseEquations) passes the correct
+		// processed string (lowercase, no spaces, thermo sub done).
+		// We need the original line mainly for 'addCaseVariableIfNotPresent'. Let's assume
+		// the caller can provide it or we can reconstruct it somewhat.
+		// For now, we pass 'cadena' as the context placeholder. A better solution
+		// might involve passing the original line into GramCheck.
+		if (parseAsODE(cadena, cadena)) { // Use processed 'cadena' for both args for now
+			// Successfully parsed as an ODE, handled elsewhere.
+			// System.out.println("DEBUG: Line treated as ODE, skipping algebraic parse: " + cadena);
+			return new GramErr((byte) 0);
 		}
-		System.out
-				.println("DEBUG: Line not an ODE, proceeding with algebraic parse: " + originalCadena);
+		// System.out.println("DEBUG: Line not an ODE, proceeding with algebraic parse: " + cadena);
 		// --- END ODE CHECK ---
 
 
-		// --- Proceed with Algebraic Equation Parsing ONLY IF NOT an ODE ---
-		String aux = new String("");
+		// --- Proceed with Algebraic Equation Processing ONLY IF NOT an ODE ---
+		String aux = new String(""); // String to build the internal MathEclipse representation
 		char c = Espacio;
-		char pc = Espacio;
-		int NumC;
+		char pc = Espacio; // Previous character
 		int i = 0;
-		int j = 0;
 		boolean Change;
 		boolean Equalsign = false;
 
-		// --- IMPORTANT: Use the *original* 'cadena' for algebraic parsing ---
+		// Reset the static Pila stack before processing this algebraic line
+		Pila.ErasePila();
+
+		// Build the internal 'aux' string: '=' -> "-1*(", '_' -> "Gg"
+		// Input 'cadena' is assumed lowercase, no spaces, no tabs here.
 		while (i != cadena.length()) {
 			Change = false;
 			c = cadena.charAt(i);
-			// --- Keep the lowercase conversion for internal algebraic processing ---
-			c = Character.toLowerCase(c);
-			NumC = (int) c;
-
-			// Check for illegal characters (same logic as before)
-			if (((NumC <= 57) & (NumC >= 48)) | ((NumC >= 97) & (NumC <= 122)) | (NumC == Igual)
-					| (NumC == Plus) | (NumC == Menos) | (NumC == Slash) | (NumC == Espacio) | (NumC == Por)
-					| (NumC == OpenP) | (NumC == CloseP) | (NumC == OpenC) | (NumC == CloseC) | (NumC == Dot)
-					| (NumC == Comma) | (NumC == Elevado) | (NumC == Barra) | (NumC == Tab)) {
-				/* Accepted characters */
-			} else
-				return (new GramErr((byte) 1, c));
-
-			// Erase tabs
-			if (c == Tab) {
-				Change = true;
-			}
 
 			// Substitute equals sign
 			if (c == Igual) {
-				if (Equalsign)
-					return (new GramErr((byte) 2, c)); // Duplicate equals
-				aux += SubsEqual; // Append the internal representation "-1*("
+				if (Equalsign) {
+					Pila.ErasePila();
+					return (new GramErr((byte) 2, c));
+				}
+				aux += SubsEqual;
 				Equalsign = true;
 				Change = true;
 			}
@@ -156,174 +149,201 @@ public class CheckString {
 				Change = true;
 			}
 
-			// Check for empty parenthesis/brackets
-			if (c == CloseP || c == CloseC)
-				if (pc == OpenP || pc == OpenC)
-					return (new GramErr((byte) 7, c)); // Empty function/group error
-
-			// Check commas and dots validity
-			if (((c == Comma) || (c == Dot)) && (!IsNumber(pc))) {
-				// Allow dot after ')' or ']' for method calls (like Substance.Property)
-				if (!((pc == CloseP || pc == CloseC) && c == Dot)) {
-					// Also check if previous was a letter - should be number or ) or ]
-					if (IsLetter(pc)) {
-						return (new GramErr((byte) 4, c)); // Dot/comma after letter error
-					}
-					// Allow dot/comma after closing paren/bracket if not followed by operator
-					// Let's refine this rule - a dot/comma generally needs a number before it
-					// unless it's part of a specific syntax we haven't identified yet.
-					// Reverting to the original stricter check for now:
-					// return (new GramErr((byte) 2, c)); // Unexpected dot/comma
-				}
-				// If it's a dot after ) or ], we let it pass for now (might be object.method syntax)
+			// --- Basic Syntax Checks on the fly ---
+			// Check for empty parenthesis/brackets using previous char 'pc'
+			if ((c == CloseP || c == CloseC) && (pc == OpenP || pc == OpenC)) {
+				Pila.ErasePila();
+				return (new GramErr((byte) 7, c));
 			}
-
-
-			// Check for two operators followed (excluding some +/- cases)
+			// Check dot validity
+			if (c == Dot && !IsNumber(pc)) {
+				if (!(pc == CloseP || pc == CloseC || IsLetter(pc) || IsNumber(pc))) {
+					Pila.ErasePila();
+					return (new GramErr((byte) 2, c));
+				}
+			}
+			// Check double operators
 			if (CheckOperator(c) && CheckOperator(pc)) {
-				// Allow things like x^-1 or x*(-1) or x/-2
 				if (!((pc == Elevado || pc == Por || pc == Slash || pc == OpenP || pc == OpenC
-						|| pc == Igual) && (c == Plus || c == Menos))) {
-					// Allow double Minus/Plus like x -- 1 or x*-1
-					if (!((pc == Menos || pc == Plus) && (c == Menos || c == Plus))) {
-						// Allow x=-y
-						if (!(pc == Igual && (c == Menos || c == Plus))) {
-							return (new GramErr((byte) 3, c)); // Two operators followed error
-						}
-					}
+						|| pc == Igual || pc == Menos || pc == Plus) && (c == Plus || c == Menos))) {
+					Pila.ErasePila();
+					return (new GramErr((byte) 3, c));
 				}
 			}
-
-
-			// Check for operator followed by closing parenthesis/bracket
-			if (CheckOperator(pc) && (c == CloseP || c == CloseC))
-				return (new GramErr((byte) 9, pc)); // Operator missing operand error
-
-			// Check for dot/comma after a letter (re-check, more specific than earlier one)
-			if (IsLetter(pc) && (c == Comma || c == Dot))
-				return (new GramErr((byte) 4, c)); // Dot or comma after a letter error
-
-			// Convert comma to dot for internal consistency
-			if (c == Comma) {
-				Change = true;
-				aux += ".";
+			// Check for operator followed by closing parenthesis/bracket (simple check)
+			if (CheckOperator(pc) && !IsNumber(c) && !IsLetter(c) && (c == CloseP || c == CloseC)) {
+				if (pc != OpenP && pc != OpenC) { // Allow f(-)
+					Pila.ErasePila();
+					return (new GramErr((byte) 9, pc));
+				}
 			}
+			// Check for dot after a letter
+			if (IsLetter(pc) && (c == Dot)) {
+				// Allow object.method or number like var.1 for now
+			}
+			// Comma should not be present
+			if (c == Comma) {
+				System.err
+						.println("DEBUG: GramCheck loop 1 - Comma found unexpectedly in processed string.");
+				Pila.ErasePila();
+				return new GramErr((byte) 1, c);
+			}
+			// --- End Basic Syntax Checks ---
+
+
+			// --- Parenthesis/Bracket Handling using P2C ---
+			if ((c == OpenP) || (c == OpenC) || (c == CloseP) || (c == CloseC)) {
+				try {
+					String translatedBracket = P2C(Character.toString(c), Character.toString(pc));
+					aux += translatedBracket;
+					Change = true;
+				} catch (Exception e) {
+					Pila.ErasePila();
+					return new GramErr((byte) 6);
+				}
+			}
+			// --- End Parenthesis/Bracket Handling ---
+
 
 			// Append character if no substitution/change happened
-			if (!Change)
+			if (!Change) {
 				aux += c;
-
-			i++; // Move to next character in original string
-
-			// Skip spaces logic
-			if (i != cadena.length()) {
-				j = i;
-				i = SkipSpaces(cadena, i); // SkipSpaces uses original cadena
-				if (j != i) {
-					i--; // Adjust index if spaces were skipped
-				}
 			}
-			// Save previous character (non-tab)
-			if (c != Tab)
-				pc = c;
-		} // End while loop
+
+			pc = c;
+			i++;
+		} // End first while loop building 'aux'
 
 		// Check for trailing operator
-		if (CheckOperator(c))
-			return (new GramErr((byte) 9, c)); // Operator at end of line error
+		if (CheckOperator(c)) {
+			Pila.ErasePila();
+			return (new GramErr((byte) 9, c));
+		}
 
-		// --- Post-processing and adding to Functions list (only for algebraic) ---
-		aux += ")"; // Append closing parenthesis for the "-1*(" substitution
+		// Final parenthesis balance check (should be done before tokenizing)
+		if (Pila.GetSize() != -1) {
+			Pila.ErasePila();
+			return (new GramErr((byte) 6));
+		}
+		Pila.ErasePila(); // Clear stack after successful balance check
 
+		// Proceed only if an equals sign was found
 		if (Equalsign) {
-			VarThisEquation = new VList();
-			String aux2 = new String(""); // Will hold the final processed algebraic expression
-			String aux3 = new String(""); // Token buffer
-			String PrevToken = new String(" "); // Previous token
-			StringTokenizer lector = new StringTokenizer(aux, "+/*-()[]{} ^=!", true); // Tokenize
-																																									// processed
-																																									// string
+			aux += ")"; // Append closing parenthesis for the "-1*(" substitution
 
-			Pila p = new Pila(); // Use Pila for parenthesis checking/translation
+			// Tokenize and process the internal 'aux' string
+			VarThisEquation = new VList();
+			String aux2 = new String(""); // Final ME-compatible expression string
+			String aux3 = new String(""); // Token buffer
+			String PrevToken = new String(" ");
+			StringTokenizer lector = new StringTokenizer(aux, "+/*-()[]{} ^=!", true);
 
 			while (lector.hasMoreTokens()) {
 				aux3 = lector.nextToken();
 
-				if (aux3.equals("ln")) // Specific translation for ln
-					aux3 = "log";
-
-				// Check if token is a known function, constant, number, or operator
+				// --- Token Validation and Processing ---
 				if (IsFunction(aux3)) {
-					/* Function: will be translated later if needed */
-				} else if ((aux3.equals("pi")) || (aux3.equals("e")) || (IsNumber(aux3.charAt(0)))) {
-					// Check if it's a valid number or a variable starting with a number
-					if (!IsNumber(aux3) && IsNumber(aux3.charAt(0))) {
-						return (new GramErr((byte) 8, aux3)); // Number followed by letter error
+					// Function
+				} else if ((aux3.equals("pi")) || (aux3.equals("e"))) {
+					// Constant
+				} else if (aux3.length() > 0 && IsNumber(aux3.charAt(0))) {
+					if (!IsNumber(aux3) && !aux3.contains("e") && !aux3.contains("E")) {
+						return (new GramErr((byte) 8, aux3)); // Number followed by letter
 					}
-					/* It's a number or constant Pi/E */
+					// Number
 				} else if ((aux3.equals("+")) || (aux3.equals("-")) || (aux3.equals("/"))
 						|| (aux3.equals("*")) || (aux3.equals(" ")) || (aux3.equals("^"))
 						|| (aux3.equals("!"))) {
-					/* Operator or space */
+					if (aux3.equals(" "))
+						continue; // Skip spaces
+					// Operator
 				} else if ((aux3.equals("(")) || (aux3.equals(")")) || (aux3.equals("["))
 						|| (aux3.equals("]"))) {
-					// Handle parenthesis/bracket translation and stack checking
-					try {
-						aux3 = P2C(aux3, PrevToken); // Translate ( to [ if needed, check stack on ) or ]
-					} catch (Exception e) {
-						return new GramErr((byte) 6); // Parenthesis mismatch error from Pila
-					}
+					// Parenthesis/Bracket - just append
 				} else {
-					// Assume it's a variable if none of the above
-					if (!checkVariable(aux3)) // Validate variable name syntax
-						return (new GramErr((byte) 10, aux3)); // Invalid variable name error
-
-					// Check for disallowed cases like `[ operator`
-					if (PrevToken.equals("[")
-							&& (aux3.equals("/") || aux3.equals("*") || aux3.equals("^") || aux3.equals("!"))) {
-						return new GramErr((byte) 2, aux3.charAt(0)); // Unexpected character after '['
+					// Assume Variable
+					if (aux3.length() > 0) {
+						if (!checkVariableInternal(aux3)) { // Validate internal Gg format
+							return (new GramErr((byte) 10, aux3));
+						}
+						// Check number directly followed by variable
+						if (PrevToken.length() > 0 && IsNumber(PrevToken.charAt(PrevToken.length() - 1))
+								&& Character.isLetter(aux3.charAt(0))) {
+							return (new GramErr((byte) 8, PrevToken + aux3));
+						}
+						// Check invalid char after opening function bracket '['
+						if (PrevToken.equals("[")
+								&& (aux3.equals("/") || aux3.equals("*") || aux3.equals("^") || aux3.equals("!"))) {
+							return new GramErr((byte) 2, aux3.charAt(0));
+						}
+						VarThisEquation.AddVar(aux3); // Add internal Gg name to local list
+					} else {
+						continue; // Skip empty tokens
 					}
-
-					// Track the variable for this equation
-					VarThisEquation.AddVar(aux3);
 				}
+				// --- End Token Validation ---
 
-				// Translate known functions/constants to MathEclipse format if needed
+				// Translate known functions/constants to MathEclipse format (TitleCase)
 				if ((IsFunction(aux3)) || (aux3.equals("e")) || (aux3.equals("pi"))) {
-					aux3 = f2F(aux3); // Translate sin to Sin, pi to Pi, etc.
+					aux3 = f2F(aux3);
 				}
-
-				// Append the processed token to the final expression string
-				aux2 += aux3;
-				PrevToken = aux3; // Update previous token
+				aux2 += aux3; // Append processed token to final expression string
+				if (!aux3.equals(" ")) {
+					PrevToken = aux3;
+				}
 
 			} // End token processing loop
 
-			// Add variables found in this equation to the global list
-			String n;
+			// Add variables from local list to GLOBAL Var list
+			String n, internalName;
 			for (int m = 0; m < VarThisEquation.getSize(); m++) {
 				n = VarThisEquation.getVar(m);
-				Var.addCountVar(n, 1); // Track lowercase version globally
-				// CaseVariables list is populated by getVariables method calls before GramCheck
+				internalName = n.toLowerCase(Locale.ENGLISH); // Should already be lowercase+Gg
+				Var.addCountVar(internalName, 1);
 			}
 
-			// Add the processed algebraic equation to the Functions list
-			Functions.add(new EqStorer(aux2, VarThisEquation));
+			Functions.add(new EqStorer(aux2, VarThisEquation)); // Add processed equation
 
-			// Final check on parenthesis balance
-			if (p.GetSize() != -1) { // Pila should be empty if balanced
-				return (new GramErr((byte) 6)); // Parenthesis mismatch error
-			} else {
-				return (new GramErr((byte) 0)); // Success for algebraic equation
-			}
+			return (new GramErr((byte) 0)); // Success
 
 		} else { // No equals sign found
-			if (emptyString(aux))
+			if (emptyString(cadena)) // Check original cadena for emptiness
 				return (new GramErr((byte) 0)); // Empty line is OK
-			else
+			else {
 				return (new GramErr((byte) 5)); // Equal sign missing error
+			}
 		}
 	} // End of GramCheck method
+
+
+	// --- Add Helper checkVariableInternal if needed ---
+	/**
+	 * Checks if a variable name in internal format (lowercase, Gg for underscore) is valid. Starts
+	 * with letter, contains only letters, digits, or 'G','g'.
+	 * 
+	 * @param internalVarName Variable name like "tggstart".
+	 * @return true if valid internal syntax.
+	 */
+	private boolean checkVariableInternal(String internalVarName) {
+		if (internalVarName == null || internalVarName.isEmpty()) {
+			return false;
+		}
+		// Check if starts with a letter
+		if (!Character.isLetter(internalVarName.charAt(0))) {
+			return false;
+		}
+		// Check subsequent characters
+		for (int i = 1; i < internalVarName.length(); i++) {
+			char ch = internalVarName.charAt(i);
+			// Allow letters, digits, or G/g
+			if (!Character.isLetterOrDigit(ch)) {
+				if (Character.toLowerCase(ch) != 'g') { // Allow only G/g besides letters/digits
+					return false;
+				}
+			}
+		}
+		return true;
+	}
 
 	/**
 	 * @param c
@@ -378,21 +398,57 @@ public class CheckString {
 
 	}
 
+
 	/**
-	 * Checks that the variable only has, numbers and letters(remember that _ has been translated to
-	 * Gg)
+	 * Checks that the variable name is valid (starts with letter, contains only letters, numbers, or
+	 * underscore). Case-insensitive for the check itself, but preserves original case.
 	 * 
-	 * @param var
-	 * @return true if everything is OK
+	 * @param varName The variable name to check.
+	 * @return true if the name syntax is valid.
 	 */
-	public boolean checkVariable(String var) {
+	public boolean checkVariable(String varName) {
+		if (varName == null || varName.isEmpty()) {
+			return false;
+		}
+		// Check if starts with a letter
+		if (!Character.isLetter(varName.charAt(0))) {
+			return false;
+		}
+		// Prevent starting with Gg literally (internal representation check)
+		if (varName.length() >= 2 && varName.substring(0, 2).equalsIgnoreCase("Gg")) {
+			return false;
+		}
 
-		for (int i = 0; i < var.length(); i++)
-			if (!IsNumber(var.charAt(i)))
-				if (!IsLetter(var.charAt(i)))
-					return false;
+		// Check subsequent characters
+		for (int i = 1; i < varName.length(); i++) {
+			char ch = varName.charAt(i);
+			// Allow letters, digits, or underscores
+			if (!Character.isLetterOrDigit(ch) && ch != '_') { // Explicitly allow '_'
+				return false; // Disallow anything else
+			}
+		}
+		// Prevent purely internal 'Gg' from being a valid variable
+		if (varName.equalsIgnoreCase("Gg")) {
+			return false;
+		}
+		return true; // Passed all checks
+	}
 
-		return true;
+	/**
+	 * If the input string (lowercase) is a known function like Cos, Sin, Tan, Exp,etc. Returns true.
+	 */
+	public boolean IsFunction(String auxLower) { // Renamed parameter for clarity
+		// Assume auxLower is already lowercase
+		if ((auxLower.equals("cos")) || (auxLower.equals("sin")) || (auxLower.equals("tan"))
+				|| (auxLower.equals("exp")) || (auxLower.equals("log")) // handles ln via earlier
+																																// substitution
+				|| (auxLower.equals("sinh")) || (auxLower.equals("cosh")) || (auxLower.equals("tanh"))
+				|| (auxLower.equals("arcsin")) || (auxLower.equals("arccos")) || (auxLower.equals("arctan"))
+		// Add other known functions if any
+		)
+			return true;
+		else
+			return false;
 	}
 
 	// This checks if a character is a number
@@ -423,22 +479,6 @@ public class CheckString {
 		return true;
 	}
 
-	// Checks if the string is a function
-	/**
-	 * If the input string is a function like Cos, Sin, Tan, Exp,etc. Returns true.
-	 */
-	public boolean IsFunction(String aux) {
-		if ((aux.equalsIgnoreCase("cos")) | (aux.equalsIgnoreCase("sin"))
-				| (aux.equalsIgnoreCase("tan")) | (aux.equalsIgnoreCase("exp"))
-				| (aux.equalsIgnoreCase("log")) | (aux.equalsIgnoreCase("sinh"))
-				| (aux.equalsIgnoreCase("cosh")) | (aux.equalsIgnoreCase("tanh"))
-				| (aux.equalsIgnoreCase("arcsin")) | (aux.equalsIgnoreCase("arccos"))
-				| (aux.equalsIgnoreCase("arctan")) | aux.equalsIgnoreCase("ln"))
-			return true;
-		else
-			return false;
-
-	}
 
 	// Skip spaces
 	/**
@@ -569,212 +609,122 @@ public class CheckString {
 		return empty;
 	}
 
+	// --- COMPLETE Method getVariables(String) ---
 	/**
-	 * 
-	 * @param cadena Saves the variables of an equation in an array, but this method saves the case
-	 *        information; This method ignores the thermodynamic call functions
+	 * Populates the static CaseVariables list with potential variable names found in the input
+	 * equation string, preserving their original case. This method only identifies potential names
+	 * based on syntax and does NOT interact with the main CheckString.Var list used by the solver
+	 * internals, nor does it perform Gg substitutions. Ignores known function names, constants (e,
+	 * pi), numbers, and operators.
+	 *
+	 * @param cadena The input equation string.
 	 */
 	public void getVariables(String cadena) {
-
-		String aux = new String("");
-		char c, pc;
-		int i = 0;
-		int j = 0;
-		boolean Change;
-		boolean Equalsign = false;
-
-		while (i != cadena.length()) {
-			Change = false;
-			c = cadena.charAt(i);
-
-			if (!false) {
-				// At first erase tabs
-				if (c == Tab) {
-					Change = true;
-				}
-
-				// This is the way i decided to make a equation to look like
-				// this 0=something from this
-				// something=other something
-				if (c == Igual) {
-					aux += SubsEqual;
-					Equalsign = true;
-					Change = true;
-				}
-				if (c == OpenC) {
-					aux += "(";
-					Change = true;
-				}
-				if (c == CloseC) {
-					aux += ")";
-					Change = true;
-				}
-				// As matheclipse can't use "_" we make here a change to make it
-				// possible, later we must
-				// translate a "Gg" to a _ to show in the results
-				if (c == Barra) {
-					aux += "Gg";
-					Change = true;
-				}
-
-				// Because of the MathEclipse libraries does not use the commas,
-				// only dots, i make this conversion to
-				// allow both possibilities
-				if (c == Comma) {
-					Change = true;
-					aux += ".";
-				}
-
-				// Write the character only if there were no changes
-				if (!Change)
-					aux += c;
-
-			}
-			i++;
-
-			if (i != cadena.length()) {// If something fails, maybe is this XD
-				j = i;
-				i = SkipSpaces(cadena, i);
-				if (j != i) {
-					i--;
-				}
-			}
-			// Save previous character
-			if (c != Tab)
-				pc = c;
+		// Basic check to avoid processing null, empty, or comment lines
+		if (cadena == null)
+			return;
+		String trimmed = cadena.trim();
+		if (trimmed.isEmpty() || trimmed.startsWith("/*") || trimmed.startsWith("/**")) {
+			return;
 		}
-		aux += ")";
-		try {
-			if (Equalsign) {
-				String[] variables = DiffAndEvaluator.getVariables(aux);
-				// Saves the variable only if it is not already in the List
-				// and if it is not an special function like: cos, sin, pi, etc.
-				for (String s : variables) {
-					Change = true;
-					if (IsFunction(s) | s.equalsIgnoreCase("e") | s.equalsIgnoreCase("Pi")
-							| s.equalsIgnoreCase(""))
-						Change = false;
 
-					if (Change)
-						for (String S : CheckString.CaseVariables)
-							if (s.equalsIgnoreCase(S))
-								Change = false;
+		// Tokenize the original string to identify potential variable names.
+		// Delimiters include common operators, parentheses, brackets, equals, comma, space, tab.
+		// Underscore is NOT a delimiter here. Dot is complex, omitting for this stage.
+		String delimiters = "+/*-()[]{} ^=!,\t"; // Removed underscore
+		StringTokenizer tokenizer = new StringTokenizer(cadena, delimiters, false); // Don't return
+																																								// delimiters
 
-					if (Change)
-						CheckString.CaseVariables.add(s);
+		while (tokenizer.hasMoreTokens()) {
+			String token = tokenizer.nextToken();
+
+			// Further split tokens that might contain dots (like Substance.Property)
+			// This is a simple split, assumes dots are separators if not part of a number.
+			StringTokenizer dotTokenizer = new StringTokenizer(token, ".", false);
+			while (dotTokenizer.hasMoreTokens()) {
+				String subToken = dotTokenizer.nextToken();
+
+				// Validate the token/subToken as a potential variable
+				// 1. Must not be empty
+				// 2. Must start with a letter
+				// 3. Must contain only valid characters (using checkVariable)
+				// 4. Must not be a known function name (case-insensitive)
+				// 5. Must not be a known constant (e, pi) (case-insensitive)
+				if (subToken.length() > 0 && Character.isLetter(subToken.charAt(0))
+						&& checkVariable(subToken)) {
+					String lowerToken = subToken.toLowerCase(Locale.ENGLISH); // Use Locale for consistency
+					if (!IsFunction(lowerToken) && !lowerToken.equals("e") && !lowerToken.equals("pi")) {
+						// If all checks pass, add its ORIGINAL case to CaseVariables
+						addCaseVariableIfNotPresent(subToken);
+					}
 				}
+				// We ignore tokens that are purely numbers or operators here.
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
 	}
+	// --- End of Method getVariables(String) ---
 
+	// --- COMPLETE Method getVariables(String, MaterialMethods, CheckString) ---
 	/**
-	 * Saves the variables of an equation in an array, but this method saves the case information and
-	 * have in consideration the thermodynamic calls.
-	 * 
-	 * @param cadena
-	 * @param Materiales
-	 * @param ch
+	 * Populates CaseVariables list, potentially after thermodynamic function substitution. This
+	 * overload first attempts to substitute thermodynamic function calls in the input string before
+	 * extracting variables. Otherwise, it behaves like the simpler getVariables(String) method. It
+	 * only populates CaseVariables with original-case names.
+	 *
+	 * @param cadena The input equation string.
+	 * @param Materiales Material methods instance for thermodynamic lookup.
+	 * @param ch CheckString instance (needed for thermo lookup).
 	 */
 	public void getVariables(String cadena, MaterialMethods Materiales, CheckString ch) {
-
-		SolverGUI SGUI = new SolverGUI();
-		// If the equation is a thermodynamic call it will be translated to it's
-		// formula
-		cadena = SGUI.searchThermodynamicFunction(cadena, Materiales, ch).getString();
-		String aux = new String("");
-		char c, pc;
-		int i = 0;
-		int j = 0;
-		boolean Change;
-		boolean Equalsign = false;
-
-		while (i != cadena.length()) {
-			Change = false;
-			c = cadena.charAt(i);
-
-			if (!false) {
-				// At first erase tabs
-				if (c == Tab) {
-					Change = true;
-				}
-
-				// This is the way i decided to make a equation to look like
-				// this 0=something from this
-				// something=other something
-				if (c == Igual) {
-					aux += SubsEqual;
-					Equalsign = true;
-					Change = true;
-				}
-				if (c == OpenC) {
-					aux += "(";
-					Change = true;
-				}
-				if (c == CloseC) {
-					aux += ")";
-					Change = true;
-				}
-				// As matheclipse can't use "_" we make here a change to make it
-				// possible, later we must
-				// translate a "Gg" to a _ to show in the results
-				if (c == Barra) {
-					aux += "Gg";
-					Change = true;
-				}
-
-				// Because of the MathEclipse libraries does not use the commas,
-				// only dots, i make this conversion to
-				// allow both possibilities
-				if (c == Comma) {
-					Change = true;
-					aux += ".";
-				}
-
-				// Write the character only if there were no changes
-				if (!Change)
-					aux += c;
-
-			}
-			i++;
-
-			if (i != cadena.length()) {// If something fails, maybe is this XD
-				j = i;
-				i = SkipSpaces(cadena, i);
-				if (j != i) {
-					i--;
-				}
-			}
-			// Save previous character
-			if (c != Tab)
-				pc = c;
+		// Basic check
+		if (cadena == null)
+			return;
+		String trimmed = cadena.trim();
+		if (trimmed.isEmpty() || trimmed.startsWith("/*") || trimmed.startsWith("/**")) {
+			return;
 		}
-		aux += ")";
-		try {
-			if (Equalsign) {
-				String[] variables = DiffAndEvaluator.getVariables(aux);
-				// Saves the variable only if it is not already in the List
-				// and if it is not an special function like: cos, sin, pi, etc.
-				for (String s : variables) {
-					Change = true;
-					if (IsFunction(s) | s.equalsIgnoreCase("e") | s.equalsIgnoreCase("Pi")
-							| s.equalsIgnoreCase(""))
-						Change = false;
 
-					if (Change)
-						for (String S : CheckString.CaseVariables)
-							if (s.equalsIgnoreCase(S))
-								Change = false;
+		// --- Attempt Thermodynamic Function Substitution FIRST ---
+		// This modifies the string *before* variable extraction if a thermo call is found.
+		SolverGUI SGUI = new SolverGUI(); // Consider making SolverGUI methods static if possible
+		GramErr thermoResult = SGUI.searchThermodynamicFunction(cadena, Materiales, ch);
+		String stringToParse;
+		if (thermoResult.GetTypeError() != 0) {
+			// Error during thermo lookup OR it wasn't a thermo function call.
+			// Proceed to parse the original string for variables.
+			// System.err.println("Warning: Error/NoSubst in thermo func during var extract: " + cadena);
+			stringToParse = cadena;
+		} else {
+			// Thermo lookup successful, use the substituted formula string for parsing.
+			// System.out.println("DEBUG: Using substituted string for var extract: " +
+			// thermoResult.getString());
+			stringToParse = thermoResult.getString();
+		}
 
-					if (Change)
-						CheckString.CaseVariables.add(s);
+		// --- Variable Extraction (from the potentially substituted string 'stringToParse') ---
+		String delimiters = "+/*-()[]{} ^=!,\t";
+		StringTokenizer tokenizer = new StringTokenizer(stringToParse, delimiters, false);
+
+		while (tokenizer.hasMoreTokens()) {
+			String token = tokenizer.nextToken();
+
+			// Handle potential dot notation within the token
+			StringTokenizer dotTokenizer = new StringTokenizer(token, ".", false);
+			while (dotTokenizer.hasMoreTokens()) {
+				String subToken = dotTokenizer.nextToken();
+
+				// Validate the token/subToken as a potential variable
+				if (subToken.length() > 0 && Character.isLetter(subToken.charAt(0))
+						&& checkVariable(subToken)) {
+					String lowerToken = subToken.toLowerCase(Locale.ENGLISH);
+					if (!IsFunction(lowerToken) && !lowerToken.equals("e") && !lowerToken.equals("pi")) {
+						addCaseVariableIfNotPresent(subToken);
+					}
 				}
 			}
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
 	}
+	// --- End of Method getVariables(String, MaterialMethods, CheckString) ---
 
 	/**
 	 * This method clean up all the variables used in iteration this is necessary because matheclipse
@@ -813,11 +763,10 @@ public class CheckString {
 
 	}
 
-	// --- File: src/String2ME/CheckString.java ---
-
 	/**
 	 * Attempts to parse the line as an ODE definition using the SolveODE syntax. If successful, adds
-	 * the definition to OdeProblems and returns true. Otherwise, returns false.
+	 * the definition to OdeProblems, tracks variables in CaseVariables, and returns true. Otherwise,
+	 * returns false.
 	 *
 	 * @param originalLine The original input line (case preserved).
 	 * @param processedLine The line processed for initial checks (lowercase, no spaces).
@@ -826,38 +775,42 @@ public class CheckString {
 	private boolean parseAsODE(String originalLine, String processedLine) {
 		// Quick check for potential ODE: presence of "=" and "solveode("
 		int equalsPos = originalLine.indexOf('=');
-		int solveOdePos = processedLine.indexOf("solveode("); // Use lowercase for keyword check
+		// Use lowercase for keyword check and ensure it appears *after* the equals
+		int solveOdePos = processedLine.indexOf("solveode(");
 
+		// Ensure SolveODE exists and appears after the equals sign
 		if (equalsPos <= 0 || solveOdePos <= equalsPos) {
 			return false; // Not in the format y = SolveODE(...)
 		}
 
-		// Extract target variable (preserving case)
+		// Extract target variable (preserving case from original line)
 		String targetVar = originalLine.substring(0, equalsPos).trim();
-		if (targetVar.isEmpty() || !Character.isLetter(targetVar.charAt(0))) {
-			return false; // Invalid target variable
+		if (targetVar.isEmpty()) {
+			return false; // No target variable
 		}
-		// Basic validation - can enhance later
-		if (!checkVariable(targetVar.toLowerCase())) { // Check lowercase version against rules
-			// Consider returning a specific error if needed, for now just fail parsing
+		// --- Use the corrected checkVariable ---
+		// Validate target variable name syntax (using the method that allows underscores)
+		if (!checkVariable(targetVar)) { // Check original case name syntax
+			System.err.println("Warning: Invalid target variable name syntax for ODE: " + targetVar);
 			return false;
 		}
 
-		// Extract the content within SolveODE(...)
+		// Extract the content within SolveODE(...) from the processed (lowercase, no space) string
 		int openParen = processedLine.indexOf('(', solveOdePos);
 		int closeParen = processedLine.lastIndexOf(')');
+		// Check for valid parenthesis pair for SolveODE arguments
 		if (openParen == -1 || closeParen <= openParen) {
+			System.err.println("Warning: Malformed SolveODE parenthesis in line: " + originalLine);
 			return false; // Malformed SolveODE call
 		}
 
 		String argsString = processedLine.substring(openParen + 1, closeParen);
 
-		// --- Argument Parsing (Simplified - Assumes no commas within derivative expression) ---
-		// We need to handle potential quoted strings for the derivative
+		// --- Argument Parsing (Handles potential quoted strings for the derivative) ---
 		List<String> arguments = new ArrayList<>();
 		StringBuilder currentArg = new StringBuilder();
 		boolean inQuotes = false;
-		int parenLevel = 0; // To handle nested parentheses within arguments if not quoted
+		int parenLevel = 0; // To handle nested parentheses within non-quoted arguments
 
 		for (int i = 0; i < argsString.length(); i++) {
 			char c = argsString.charAt(i);
@@ -866,24 +819,42 @@ public class CheckString {
 				inQuotes = !inQuotes;
 				currentArg.append(c); // Keep quotes for now, will trim later
 			} else if (c == ',' && !inQuotes && parenLevel == 0) {
+				// Found top-level comma outside quotes, store previous argument
 				arguments.add(currentArg.toString().trim());
 				currentArg.setLength(0); // Reset for next argument
 			} else {
-				if (!inQuotes) { // Only track parentheses outside quotes
+				// Track parentheses nesting only outside quotes
+				if (!inQuotes) {
 					if (c == '(' || c == '[')
 						parenLevel++;
-					else if (c == ')' || c == ']')
+					else if (c == ')' || c == ']') {
 						parenLevel--;
+						if (parenLevel < 0) { // Mismatched closing parenthesis
+							System.err.println(
+									"Warning: Mismatched parenthesis inside SolveODE arguments: " + argsString);
+							return false;
+						}
+					}
 				}
-				currentArg.append(c);
+				currentArg.append(c); // Append character to current argument
 			}
 		}
-		arguments.add(currentArg.toString().trim()); // Add the last argument
+		// Add the last argument after the loop finishes
+		arguments.add(currentArg.toString().trim());
 
+		// Check if the correct number of arguments was found
 		if (arguments.size() != 5) {
-			// Specific error could be raised here if needed
+			System.err.println("Warning: Incorrect number of arguments for SolveODE (expected 5, found "
+					+ arguments.size() + ") in line: " + originalLine);
 			return false; // Expected 5 arguments
 		}
+		// Check for unbalanced parentheses in the last argument (or overall)
+		if (parenLevel != 0) {
+			System.err
+					.println("Warning: Unbalanced parenthesis inside SolveODE arguments: " + argsString);
+			return false;
+		}
+
 
 		// Trim quotes from the derivative expression if present
 		String derivativeExpr = arguments.get(0);
@@ -891,88 +862,157 @@ public class CheckString {
 				&& derivativeExpr.length() >= 2) {
 			derivativeExpr = derivativeExpr.substring(1, derivativeExpr.length() - 1);
 		} else if (derivativeExpr.contains("\"")) {
-			// Mismatched quotes or quotes inside - treat as error for now
+			// Mismatched quotes or quotes inside - treat as error
+			System.err.println(
+					"Warning: Invalid quoting in derivative expression for SolveODE: " + arguments.get(0));
 			return false;
 		}
 		// --- End Argument Parsing ---
 
-
+		// Extract other arguments (they are already trimmed)
 		String integrationVar = arguments.get(1);
 		String startTimeExpr = arguments.get(2);
 		String endTimeExpr = arguments.get(3);
 		String initialValueExpr = arguments.get(4);
 
-		// Basic validation of argument names (can be enhanced)
-		if (!checkVariable(integrationVar.toLowerCase()) ||
-		// Allow numbers or variables for time/initial value for now
-				!isValidExpressionArgument(startTimeExpr) || !isValidExpressionArgument(endTimeExpr)
-				|| !isValidExpressionArgument(initialValueExpr)) {
+		// --- Use corrected checkVariable and isValidExpressionArgument for validation ---
+		// Integration variable must be a valid variable name
+		if (!checkVariable(integrationVar)) { // Use checkVariable which allows '_'
+			System.err
+					.println("Warning: Invalid integration variable name syntax for ODE: " + integrationVar);
 			return false;
 		}
+		// Time/initial value expressions must be valid expressions (number or variable name)
+		if (!isValidExpressionArgument(startTimeExpr)) { // isValidExpressionArgument now uses
+																											// checkVariable
+			System.err.println("Warning: Invalid start time expression for ODE: " + startTimeExpr);
+			return false;
+		}
+		if (!isValidExpressionArgument(endTimeExpr)) {
+			System.err.println("Warning: Invalid end time expression for ODE: " + endTimeExpr);
+			return false;
+		}
+		if (!isValidExpressionArgument(initialValueExpr)) {
+			System.err.println("Warning: Invalid initial value expression for ODE: " + initialValueExpr);
+			return false;
+		}
+		// Derivative expression validation is still minimal here.
 
-		// Store the definition
+
+		// --- Store the ODE definition ---
 		ODEProblemDefinition odeDef = new ODEProblemDefinition(targetVar, derivativeExpr,
 				integrationVar, startTimeExpr, endTimeExpr, initialValueExpr, originalLine // Store original
 																																										// line too
 		);
-		OdeProblems.add(odeDef);
+		// Ensure OdeProblems list is initialized before adding
+		if (OdeProblems == null) {
+			OdeProblems = new ArrayList<>();
+		}
+		OdeProblems.add(odeDef); // Add to the static list
 
-		// Add variables to tracking lists (preserving case from original line/args)
-		// Target variable
-		Var.addCountVar(targetVar.toLowerCase(), 1); // Track lowercase for solver internals
-		addCaseVariableIfNotPresent(targetVar); // Track original case
+		// --- Variable Tracking (Populate CaseVariables ONLY) ---
+		// Ensure CaseVariables list is initialized
+		if (CaseVariables == null) {
+			CaseVariables = new LinkedList<>();
+		}
+		addCaseVariableIfNotPresent(targetVar); // Add original case of target
 
-		// Integration variable
-		Var.addCountVar(integrationVar.toLowerCase(), 1);
-		addCaseVariableIfNotPresent(integrationVar);
+		// Find original case of integration var from the original line for accuracy
+		addCaseVariableIfNotPresent(findOriginalCase(integrationVar, originalLine));
 
-		// Also parse variables used *within* the expressions
-		getVariablesFromExpression(derivativeExpr);
-		getVariablesFromExpression(startTimeExpr);
-		getVariablesFromExpression(endTimeExpr);
-		getVariablesFromExpression(initialValueExpr);
+		// Parse variables used *within* the expressions, using original full line as context
+		getVariablesFromExpression(derivativeExpr, originalLine);
+		getVariablesFromExpression(startTimeExpr, originalLine);
+		getVariablesFromExpression(endTimeExpr, originalLine);
+		getVariablesFromExpression(initialValueExpr, originalLine);
+		// --- End Variable Tracking ---
 
 		System.out.println("DEBUG: Successfully parsed ODE: " + odeDef); // Debug output
 		return true; // Indicate successful ODE parsing
+	}
+	// --- End of Method parseAsODE ---
+
+	// Helper method JUST to extract potential variable names from an expression string
+	private Set<String> extractVarsOnly(String expression) {
+		Set<String> foundVars = new HashSet<>();
+		if (expression == null || expression.isEmpty())
+			return foundVars;
+		try {
+			Double.parseDouble(expression.replace(',', '.')); // Ignore if just a number
+			return foundVars;
+		} catch (NumberFormatException e) {
+		}
+
+		String processedExpr = expression.toLowerCase();
+		String token;
+		StringTokenizer tokenizer = new StringTokenizer(processedExpr, "+/*-()[]{} ^=!", true);
+		while (tokenizer.hasMoreTokens()) {
+			token = tokenizer.nextToken().trim();
+			if (token.isEmpty())
+				continue;
+			if (token.length() > 0 && Character.isLetter(token.charAt(0)) && checkVariable(token)) {
+				if (!IsFunction(token) && !token.equals("e") && !token.equals("pi")
+						&& !token.equalsIgnoreCase("gg")) {
+					foundVars.add(token);
+				}
+			}
+		}
+		return foundVars;
 	}
 
 	// Helper to check if an argument is a simple number or a valid variable name
 	private boolean isValidExpressionArgument(String arg) {
 		if (arg == null || arg.isEmpty())
 			return false;
-		// Try parsing as double
 		try {
-			Double.parseDouble(arg.replace(',', '.')); // Allow comma decimal temporarily
+			Double.parseDouble(arg.replace(',', '.'));
 			return true;
 		} catch (NumberFormatException e) {
-			// Not a number, check if it's a valid variable name
-			if (!Character.isLetter(arg.charAt(0)))
-				return false; // Must start with letter
-			return checkVariable(arg.toLowerCase()); // Check against variable rules
+			// Use the corrected checkVariable
+			return checkVariable(arg); // Check the argument directly
 		}
 	}
 
-	// Helper to add original case variable if not already tracked
+	/**
+	 * Helper to add original case variable if not already tracked. Performs case-insensitive check
+	 * before adding.
+	 * 
+	 * @param varName The variable name with its original casing.
+	 */
 	private void addCaseVariableIfNotPresent(String varName) {
+		if (varName == null || varName.trim().isEmpty())
+			return;
+		String trimmedVarName = varName.trim();
+
 		boolean found = false;
+		if (CaseVariables == null)
+			CaseVariables = new LinkedList<>(); // Initialize if needed
 		for (String existing : CaseVariables) {
-			if (existing.equalsIgnoreCase(varName)) {
+			if (existing.equalsIgnoreCase(trimmedVarName)) {
 				found = true;
 				break;
 			}
 		}
 		if (!found) {
-			CaseVariables.add(varName);
+			// Use corrected checkVariable before adding
+			if (checkVariable(trimmedVarName)) {
+				CaseVariables.add(trimmedVarName);
+			} else {
+				// System.err.println("Warning: Prevented adding invalid name to CaseVariables: " +
+				// trimmedVarName);
+			}
 		}
 	}
 
 	// Helper to extract and track variables from expression strings (like derivative, times, etc.)
 	// This is a simplified version based on the existing getVariables logic
-	private void getVariablesFromExpression(String expression) {
+	private void getVariablesFromExpression(String expression, String originalContext) { // Added
+																																												// originalContext
 		if (expression == null || expression.isEmpty())
 			return;
 		// Skip if it's just a number
 		try {
+			// Use Locale.US to ensure dot is decimal separator regardless of system locale
 			Double.parseDouble(expression.replace(',', '.'));
 			return;
 		} catch (NumberFormatException e) {
@@ -982,23 +1022,24 @@ public class CheckString {
 		// Use a simplified tokenizer approach similar to getVariables
 		String processedExpr = expression.toLowerCase(); // Work with lowercase
 		String token;
-		StringTokenizer tokenizer = new StringTokenizer(processedExpr, "+/*-()[]{} ^=!", true); // Include
-																																														// space
-																																														// as
-																																														// delimiter
+		// Added '=' to delimiters just in case, though unlikely in these expression args
+		StringTokenizer tokenizer = new StringTokenizer(processedExpr, "+/*-()[]{} ^=!", true);
 
 		while (tokenizer.hasMoreTokens()) {
 			token = tokenizer.nextToken();
-			if (token.equals(" "))
-				continue; // Skip spaces
+			token = token.trim(); // Trim spaces from token
+			if (token.isEmpty())
+				continue;
 
 			// Check if it looks like a variable (starts with letter, follows rules)
+			// Use the MODIFIED checkVariable that allows underscores
 			if (token.length() > 0 && Character.isLetter(token.charAt(0)) && checkVariable(token)) {
 				// Check it's not a function or constant
-				if (!IsFunction(token) && !token.equals("e") && !token.equals("pi")) {
-					Var.addCountVar(token, 1); // Add lowercase to main var list
-					// Find original case version (best effort) and add if needed
-					addCaseVariableIfNotPresent(findOriginalCase(token, expression));
+				if (!IsFunction(token) && !token.equals("e") && !token.equals("pi")
+						&& !token.equalsIgnoreCase("gg")) {
+					Var.addCountVar(token, 1); // Add lowercase ONLY to main var list
+					// Find original case version using the original expression/line as context
+					addCaseVariableIfNotPresent(findOriginalCase(token, originalContext));
 				}
 			}
 		}
@@ -1006,13 +1047,17 @@ public class CheckString {
 
 	// Helper to find original case (simple search in original expression)
 	private String findOriginalCase(String lowerCaseToken, String originalExpression) {
-		int index = originalExpression.toLowerCase().indexOf(lowerCaseToken);
-		if (index != -1) {
-			// Found a potential match, extract the substring with original casing
-			// This is imperfect if the token appears multiple times with different casing
-			return originalExpression.substring(index, index + lowerCaseToken.length());
+		// Use regex word boundaries (\b) to find the token as a whole word, case-insensitive
+		java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+				"\\b" + java.util.regex.Pattern.quote(lowerCaseToken) + "\\b",
+				java.util.regex.Pattern.CASE_INSENSITIVE);
+		java.util.regex.Matcher matcher = pattern.matcher(originalExpression);
+		if (matcher.find()) {
+			// Found a match, return the exact substring from the original expression
+			return matcher.group(0);
 		}
-		return lowerCaseToken; // Fallback to lowercase if not found (should ideally not happen)
+		// Fallback if regex fails (should be rare)
+		return lowerCaseToken;
 	}
 
 }

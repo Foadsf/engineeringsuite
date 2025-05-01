@@ -1,0 +1,21 @@
+/* Example 15: Simple ODE - Linear Growth */
+/* Solves dy/dt = m */
+/* Analytical solution: y(t) = m*t + y0 */
+
+/** Parameters **/
+m = 10.0      /* Rate of growth */
+y0 = 5.0      /* Initial value */
+t_start = 0
+t_end = 20
+
+/** ODE Definition **/
+/* Calculates y at t=t_end */
+y_at_tend = SolveODE("m", time, t_start, t_end, y0)
+
+/** Optional: Calculate analytical solution for comparison **/
+y_analytical = m*t_end + y0
+
+@$@%@EndOfEquationData@$@%@
+/* y_at_tend = 100 */
+/* y_analytical = 100 */
+@$@%@EndOfInitialVariableValueData@$@%@
