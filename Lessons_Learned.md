@@ -54,13 +54,26 @@ This document tracks key findings, workarounds, and best practices discovered du
 *   **Limitation:** Does *not* understand the custom `Substance.Property()` syntax (see Lesson 1).
 *   
 
-## 6. Parser Limitation: Scientific E-Notation
+## 6. Equation Parser Limitation: Scientific E-Notation
 
-*   **Observation:** The `CheckString.GramCheck` parser fails to interpret standard scientific E-notation (e.g., `5.67E-8`). It incorrectly identifies the `E` as the start of a variable name following a number, leading to a "missing operator" error. This can also cause cascading errors like spurious "parenthesis mismatch" reports in subsequent lines.
+*   **Observation:** The `CheckString.GramCheck` parser (which processes the main *equation* section, before the `@$@%@EndOfEquationData@$@%@` marker) fails to interpret standard scientific E-notation (e.g., `5.67E-8`). It incorrectly identifies the `E` as the start of a variable name following a number, leading to a "missing operator" error. This can also cause cascading errors like spurious "parenthesis mismatch" reports in subsequent lines.
 *   **Error Message:** `Number followed directly by variable/letter (missing operator?) near <...e>`
-*   **Workaround:** Express scientific notation using explicit multiplication and exponentiation syntax understood by the parser.
+*   **Workaround (Equation Section):** Express scientific notation using explicit multiplication and exponentiation syntax understood by the parser.
     *   **Replace:** `variable = 1.23E-4`
     *   **With:** `variable = 1.23 * (10 ^ (-4))`
 *   **Status:** Workaround confirmed effective in `15_SimpleRadiation.ris` example.
+
+## 7. Initial Value Parser Limitations
+
+*   **Observation 1:** The parser that reads the *initial value* section (after the `@$@%@EndOfEquationData@$@%@` marker) **cannot evaluate mathematical expressions**. It requires plain numerical values.
+    *   **Failing Example (Initial Value):** `variable = 1.5 * (10 ^ (-4))` will cause a parsing error.
+    *   **Working Example (Initial Value):** `variable = 0.00015`
+*   **Observation 2:** Unlike the *equation* parser, the *initial value* parser **can** correctly handle standard scientific E-notation.
+    *   **Working Example (Initial Value):** `variable = 1.5E-4` is parsed correctly.
+*   **Error Message (Expression Failure):** `WARNING: Could not parse number from initial value line: ... - Error: For input string: "..."`
+*   **Impact:** If an initial guess cannot be parsed, the solver might use a default value (e.g., 1.0 from `config.txt`), which can lead to convergence failure or runtime errors during the solution or final residual check, even if the solver ultimately finds a result (as seen initially in `20_VanDerWaals.ris`).
+*   **Best Practice (Initial Values):** Use plain decimal numbers (e.g., `0.00015`) or scientific E-notation (e.g., `1.5E-4`), but **avoid** expressions involving operators like `*` or `^`.
+*   **Status:** Plain number workaround confirmed in `20_VanDerWaals.ris`. E-notation success also confirmed for initial values in separate testing (or assumed based on typical parser behavior). Expression failure confirmed.
+
 
 *(This file should be updated as new significant findings or workarounds are discovered.)*

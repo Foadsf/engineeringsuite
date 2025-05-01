@@ -1,0 +1,33 @@
+/* Example 20: Van der Waals Equation of State */
+/* Calculates the molar volume (v) for Carbon Dioxide (CO2) */
+/* USING CUBIC FORM: P*v^3 - (P*b + R*T)*v^2 + a*v - a*b = 0 */
+/* To avoid potential division issues in residual check */
+
+/* UNITS: Ensure consistency! Example uses SI base units for calculation: */
+/* Pressure (P) in Pascals (Pa) */
+/* Molar Volume (v) in m^3/mol */
+/* Temperature (T) in Kelvin (K) */
+/* Universal Gas Constant (R) in J/(mol*K) */
+/* VdW constants 'a' (Pa*m^6/mol^2) and 'b' (m^3/mol) */
+
+/** Given State **/
+T_K = 350.0       /* Temperature (K) */
+P_Pa = 10.0 * (10 ^ 6) /* Pressure (Pa = 10 MPa) */
+
+/** Constants **/
+R_univ = 8.314    /* Universal Gas Constant (J/(mol*K)) */
+
+/** Van der Waals Constants for CO2 **/
+a_vdw = 0.3640    /* Pa*m^6/mol^2 */
+b_vdw = 4.267 * (10 ^ (-5)) /* m^3/mol - USE WORKAROUND for E-notation */
+
+/** Van der Waals Equation (Cubic Form) **/
+/* P*v^3 - (P*b + R*T)*v^2 + a*v - a*b = 0 */
+P_Pa*(v_m3mol^3) - (P_Pa*b_vdw + R_univ*T_K)*(v_m3mol^2) + a_vdw*v_m3mol - a_vdw*b_vdw = 0
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guess for molar volume (v_m3mol) */
+/* Ideal Gas Estimate: v_ideal = R*T/P = 8.314*350 / (10e6) = 2.91e-4 m^3/mol */
+/* Real gas volume usually lower than ideal at high pressure */
+v_m3mol = 0.00015 /* m^3/mol - Use plain number */
+@$@%@EndOfInitialVariableValueData@$@%@

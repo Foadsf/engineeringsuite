@@ -1,0 +1,57 @@
+/* Example 19: Radiation in a 3-Surface Enclosure (Simplified) */
+/* Calculates net radiation exchange between surface 1 and 2 (Q12_net) */
+/* Assumes diffuse, gray surfaces. Surface 3 is large black surroundings. */
+
+/* UNITS: Ensure consistency! This example assumes: */
+/* Area (A) in m^2 */
+/* Temperature (T) in K */
+/* Emissivity (eps) dimensionless */
+/* Radiosity (J) in W/m^2 */
+/* Heat Transfer (Q) in W */
+/* Stefan-Boltzmann Constant (sigma) in W/(m^2*K^4) */
+/* View Factor (F) dimensionless */
+
+/** Properties and Constants **/
+A1 = 1.0      /* Area of surface 1 (m^2) */
+eps1 = 0.8    /* Emissivity of surface 1 */
+T1 = 1000     /* Temperature of surface 1 (K) */
+
+eps2 = 0.7    /* Emissivity of surface 2 */
+T2 = 500      /* Temperature of surface 2 (K) */
+
+T3 = 300      /* Temperature of surroundings (surface 3) (K) */
+
+/* Stefan-Boltzmann Constant - USE WORKAROUND for E-notation */
+sigma = 5.67 * (10 ^ (-8)) /* W/(m^2*K^4) */
+
+/** View Factors (Example: Parallel Plates) **/
+/* Assume F11 = 0, F22 = 0 (flat/convex surfaces) */
+F12 = 0.5     /* Given view factor from 1 to 2 */
+/* Summation Rule: F11 + F12 + F13 = 1 */
+F13 = 1 - F12 /* View factor from 1 to surroundings */
+/* Reciprocity: A1*F12 = A2*F21. If A1=A2, then F21=F12 */
+/* Assuming A1=A2 for simplicity here */
+F21 = F12
+/* Summation Rule: F21 + F22 + F23 = 1 */
+F23 = 1 - F21 /* View factor from 2 to surroundings */
+
+/** Radiosity Equations **/
+/* J = emissive_power + reflected_incoming_radiation */
+/* J = eps*sigma*T^4 + (1-eps)*G */
+/* G1 = F11*J1 + F12*J2 + F13*J3 ... (F11=0) */
+/* J3 = sigma*T3^4 (Surroundings are blackbody, eps3=1, rho3=0) */
+
+J1 = eps1*sigma*(T1^4) + (1-eps1)*( F12*J2 + F13*sigma*(T3^4) )
+J2 = eps2*sigma*(T2^4) + (1-eps2)*( F21*J1 + F23*sigma*(T3^4) )
+
+/** Net Heat Transfer Calculation **/
+/* Q12_net = A1 * F12 * (J1 - J2) */
+Q12_net = A1 * F12 * (J1 - J2)
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses */
+/* Radiosities are often close to blackbody emissive power */
+J1 = 50000    /* W/m^2 (sigma*T1^4 is approx 56700) */
+J2 = 4000     /* W/m^2 (sigma*T2^4 is approx 3540) */
+Q12_net = 20000 /* W */
+@$@%@EndOfInitialVariableValueData@$@%@
