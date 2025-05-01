@@ -1,0 +1,48 @@
+/* Example 23: Steady-State Heat Transfer Through Composite Wall */
+/* Calculates interface temperatures and heat flux (per unit area). */
+
+/* Configuration: Fluid 1 | Wall A | Wall B | Fluid 2 */
+
+/* UNITS: Ensure consistency! Example assumes: */
+/* Temperature (T) in K */
+/* Heat Transfer Coefficient (h) in W/(m^2*K) */
+/* Thermal Conductivity (k) in W/(m*K) */
+/* Thickness (L) in m */
+/* Heat Flux (q_flux) in W/m^2 */
+
+/** Input Conditions and Properties **/
+T_inf1 = 400.0   /* Temperature of fluid 1 (K) */
+h1 = 50.0      /* Convection coefficient fluid 1 (W/m^2*K) */
+
+k_A = 1.5      /* Thermal conductivity of wall A (W/m*K) */
+L_A = 0.05     /* Thickness of wall A (m) */
+
+k_B = 0.5      /* Thermal conductivity of wall B (W/m*K) */
+L_B = 0.10     /* Thickness of wall B (m) */
+
+T_inf2 = 300.0   /* Temperature of fluid 2 (K) */
+h2 = 20.0      /* Convection coefficient fluid 2 (W/m^2*K) */
+
+/** Heat Transfer Equations (Steady State, 1-D) **/
+/* Based on thermal resistances in series */
+
+/* Convection from Fluid 1 to Surface 1 (T_s1) */
+q_flux = h1 * (T_inf1 - T_s1)
+
+/* Conduction through Wall A (Surface 1 to Interface T_int) */
+q_flux = (k_A / L_A) * (T_s1 - T_int)
+
+/* Conduction through Wall B (Interface to Surface 2 T_s2) */
+q_flux = (k_B / L_B) * (T_int - T_s2)
+
+/* Convection from Surface 2 to Fluid 2 */
+q_flux = h2 * (T_s2 - T_inf2)
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses */
+/* Temperatures should decrease from T_inf1 to T_inf2 */
+T_s1 = 390     /* K */
+T_int = 370    /* K */
+T_s2 = 320     /* K */
+q_flux = 500   /* W/m^2 */
+@$@%@EndOfInitialVariableValueData@$@%@

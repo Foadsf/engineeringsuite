@@ -1,0 +1,46 @@
+/* Example 21: Heating Air at Constant Pressure */
+/* Calculates final temperature and enthalpy change. */
+/* Uses MANUAL property correlations for Air due to CLI parsing limits. */
+/* !! Formulas used here are illustrative approximations - use accurate ones !! */
+
+/* UNITS: Ensure consistency! */
+/* Temperature (T) in K */
+/* Pressure (P) in kPa (Note: P is constant, used conceptually) */
+/* Specific Heat (Cp) in kJ/(kg*K) (Assumed constant here for simplicity) */
+/* Heat Added (Q_in) in kJ/kg */
+/* Enthalpy (h) in kJ/kg */
+
+/** Initial State & Process **/
+T1_K = 300      /* Initial Temperature (K) */
+P1_kPa = 101.3  /* Constant Pressure (kPa) */
+Q_in_kJkg = 100 /* Heat added per kg of air (kJ/kg) */
+
+/** Approximate Air Properties (Manual Formulas) **/
+/* Using a very simple linear enthalpy model h = Cp * T (relative to 0 K) */
+/* A real case would use more complex polynomials from Thermo..txt */
+/* Assume constant Cp for this simplified example */
+Cp_air = 1.005  /* Approximate Cp for air (kJ/kg*K) */
+
+/** State Calculations **/
+P2_kPa = P1_kPa  /* Constant pressure process */
+
+/* 1. Calculate initial enthalpy */
+h1 = Cp_air * T1_K /* kJ/kg (relative to 0 K) */
+
+/* 2. Calculate final enthalpy using energy balance */
+h2 = h1 + Q_in_kJkg /* kJ/kg */
+
+/* 3. Calculate final temperature from final enthalpy */
+/* Inverting the enthalpy model: T = h / Cp */
+T2_K = h2 / Cp_air /* K */
+
+/* 4. Calculate enthalpy change (for output) */
+Delta_h = h2 - h1 /* kJ/kg */
+
+/** Convert Temps to Celsius for easier interpretation (Optional Output) **/
+T1_C = T1_K - 273.15
+T2_C = T2_K - 273.15
+
+@$@%@EndOfEquationData@$@%@
+/* No initial guesses needed as this system calculates sequentially */
+@$@%@EndOfInitialVariableValueData@$@%@

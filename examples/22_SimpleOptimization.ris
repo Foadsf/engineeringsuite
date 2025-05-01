@@ -1,0 +1,25 @@
+/* Example 22: Finding Maximum of a Function via Derivative */
+/* Finds the x that maximizes y = x * exp(-x^2) by setting dy/dx = 0 */
+
+/* UNITS: Dimensionless */
+
+/** Function Definition (Optional, for calculating y_at_max) **/
+y = x * exp[-x^2]
+
+/** Derivative Definition **/
+/* dy/dx = d/dx(x * exp(-x^2)) = exp(-x^2) + x * (-2*x*exp(-x^2)) */
+/* dy/dx = exp(-x^2) * (1 - 2*x^2) */
+dydx = exp[-x^2] * (1 - 2*(x^2))
+
+/** Condition for Maximum **/
+/* Set the derivative to zero to find critical points (maxima/minima) */
+dydx = 0
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guess for x */
+/* The function x*exp(-x^2) has a peak around x = 1/sqrt(2) ~ 0.7 */
+x = 0.5      /* Dimensionless */
+/* Initial guesses for dependent vars (optional but good practice) */
+y = 0.3
+dydx = 0.1
+@$@%@EndOfInitialVariableValueData@$@%@

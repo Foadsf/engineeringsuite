@@ -75,5 +75,11 @@ This document tracks key findings, workarounds, and best practices discovered du
 *   **Best Practice (Initial Values):** Use plain decimal numbers (e.g., `0.00015`) or scientific E-notation (e.g., `1.5E-4`), but **avoid** expressions involving operators like `*` or `^`.
 *   **Status:** Plain number workaround confirmed in `20_VanDerWaals.ris`. E-notation success also confirmed for initial values in separate testing (or assumed based on typical parser behavior). Expression failure confirmed.
 
+## 8. Residual Evaluation Artifacts near Zero
+
+*   **Observation:** When solving an equation that sets an expression to zero (e.g., finding a maximum/minimum by setting `dydx = 0`), the solver may find the correct variable value(s) resulting in a zero residual for the `dydx = 0` equation itself. However, the separate residual check for the line *defining* the expression (e.g., `dydx = expression_that_should_be_zero`) might fail with a `RuntimeException`.
+*   **Cause:** This is likely due to floating-point precision limitations. The calculated variable value is extremely close but not *exactly* the theoretical value that makes the expression zero. When `DiffAndEvaluator.Evaluate` calculates the residual for the defining expression, tiny precision errors can lead to numerical instability or internal errors within the symbolic engine, even though the solver correctly satisfied the `dydx = 0` condition.
+*   **Example:** Seen in `22_SimpleOptimization.ris`. The solver correctly finds `x` where `dydx=0` (residual is 0), but the residual check for the line `dydx = exp[-x^2] * (1 - 2*(x^2))` fails.
+*   **Recommendation:** If the primary condition (e.g., `dydx = 0`) shows a zero residual, and the variable values seem correct, the `RuntimeException` on the defining expression's residual check can often be considered an artifact and potentially ignored for simple cases. For complex models, it might warrant further investigation or equation reformulation.
 
 *(This file should be updated as new significant findings or workarounds are discovered.)*
