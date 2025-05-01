@@ -52,5 +52,15 @@ This document tracks key findings, workarounds, and best practices discovered du
 *   **Function:** Performs initial syntax validation before equations are processed further or sent to the symbolic engine.
 *   **Errors Caught:** Identifies issues like missing `=`, duplicate `=`, misplaced operators, invalid characters in variable names, parenthesis mismatches, empty function calls (e.g., `sin()`), etc. Refer to the `GramErr` codes and `SolverGUI.checkGram` for specifics.
 *   **Limitation:** Does *not* understand the custom `Substance.Property()` syntax (see Lesson 1).
+*   
+
+## 6. Parser Limitation: Scientific E-Notation
+
+*   **Observation:** The `CheckString.GramCheck` parser fails to interpret standard scientific E-notation (e.g., `5.67E-8`). It incorrectly identifies the `E` as the start of a variable name following a number, leading to a "missing operator" error. This can also cause cascading errors like spurious "parenthesis mismatch" reports in subsequent lines.
+*   **Error Message:** `Number followed directly by variable/letter (missing operator?) near <...e>`
+*   **Workaround:** Express scientific notation using explicit multiplication and exponentiation syntax understood by the parser.
+    *   **Replace:** `variable = 1.23E-4`
+    *   **With:** `variable = 1.23 * (10 ^ (-4))`
+*   **Status:** Workaround confirmed effective in `15_SimpleRadiation.ris` example.
 
 *(This file should be updated as new significant findings or workarounds are discovered.)*

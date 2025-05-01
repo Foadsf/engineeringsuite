@@ -1,0 +1,27 @@
+/* Example 15: Radiation Heat Transfer Between Two Large Parallel Plates */
+/* Calculates net heat transfer rate per unit area (q_net_12). */
+/* CORRECTED for scientific notation parsing */
+
+/* UNITS: Ensure consistency! This example assumes: */
+/* Temperature (T) in K */
+/* Emissivity (eps) dimensionless */
+/* Stefan-Boltzmann Constant (sigma) in W/(m^2*K^4) */
+/* Heat Flux (q) in W/m^2 */
+
+/** Properties and Constants **/
+eps1 = 0.8    /* Emissivity of surface 1 */
+eps2 = 0.6    /* Emissivity of surface 2 */
+T1 = 500      /* Temperature of surface 1 (K) */
+T2 = 300      /* Temperature of surface 2 (K) */
+/* sigma = 5.67E-8  <- Original line causing parser error */
+sigma = 5.67 * (10 ^ (-8)) /* CORRECTED: Stefan-Boltzmann constant (W/m^2*K^4) */
+
+/** Radiation Calculation **/
+/* Net radiation heat transfer per unit area between two large parallel gray surfaces */
+/* Formula: q_net_12 = sigma * (T1^4 - T2^4) / ( (1/eps1) + (1/eps2) - 1 ) */
+/* Parentheses checked and seem correct */
+q_net_12 = sigma * (T1^4 - T2^4) / ( (1/eps1) + (1/eps2) - 1 )
+
+@$@%@EndOfEquationData@$@%@
+/* No initial guesses needed as this is a direct calculation */
+@$@%@EndOfInitialVariableValueData@$@%@
