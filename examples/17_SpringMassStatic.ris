@@ -1,0 +1,27 @@
+/* Example 11: Simple Spring-Mass System (Statics) */
+/* Calculates the displacement of a spring due to an attached mass. */
+
+/* UNITS: Ensure consistency! Example assumes: */
+/* Force (F_spring, F_weight) in N */
+/* Spring constant (k) in N/m */
+/* Displacement (x) in m */
+/* Mass (m) in kg */
+/* Gravity (g) in m/s^2 */
+
+/** System Parameters **/
+m_kg = 5.0      /* Mass (kg) */
+k_Npm = 100.0   /* Spring constant (N/m) */
+g_mps2 = 9.81   /* Acceleration due to gravity (m/s^2) */
+
+/** Force Equations **/
+F_spring = k_Npm * x_m  /* Hooke's Law */
+F_weight = m_kg * g_mps2 /* Weight force */
+
+/** Static Equilibrium **/
+/* Sum of forces in vertical direction = 0 */
+/* Assuming spring force opposes weight */
+F_spring = F_weight
+
+@$@%@EndOfEquationData@$@%@
+/* No initial guess needed for x_m as it's solved directly */
+@$@%@EndOfInitialVariableValueData@$@%@

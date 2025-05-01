@@ -1,0 +1,30 @@
+/* Example 10: Ideal Gas Law Application */
+/* Calculates the volume occupied by a mass of air. */
+
+/* UNITS: Ensure consistency! This example uses: */
+/* Pressure (P) in kPa */
+/* Volume (V) in m^3 */
+/* Mass (m) in kg */
+/* Specific Gas Constant (R_air) in kJ/(kg*K) */
+/* Temperature (T) in K */
+
+/** Given Conditions **/
+P_kPa = 200     /* Pressure (kPa) */
+m_kg = 1.5      /* Mass (kg) */
+T_K = 300       /* Temperature (K) */
+
+/** Properties for Air (Ideal Gas) **/
+R_air = 0.287   /* Specific gas constant for air (kJ/kg*K) */
+
+/** Ideal Gas Law Equation **/
+/* P * V = m * R * T */
+/* Note: Pressure needs to be in Pa for consistency if R is in J/(kg*K) */
+/* Or keep P in kPa and R in kJ/(kg*K) */
+/* (P_kPa * 1000) * V_m3 = m_kg * (R_air * 1000) * T_K */
+/* Simplified: P_kPa * V_m3 = m_kg * R_air * T_K */
+
+P_kPa * V_m3 = m_kg * R_air * T_K
+
+@$@%@EndOfEquationData@$@%@
+/* No initial guess needed for V_m3 as it's solved directly */
+@$@%@EndOfInitialVariableValueData@$@%@
