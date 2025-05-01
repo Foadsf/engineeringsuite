@@ -1,0 +1,65 @@
+/* Example 25: Adiabatic Mixing of Two Water Streams */
+/* Calculates the outlet mixture temperature (T3) and mass flow rate (m_dot3). */
+/* Uses MANUAL specific heat property correlations for Water due to CLI parsing limits. */
+/* !! Formulas used here are illustrative approximations - use accurate ones !! */
+
+/* UNITS: Ensure consistency! */
+/* Mass flow rate (m_dot) in kg/s */
+/* Temperature (T) in K */
+/* Pressure (P) in kPa (Constant pressure assumed) */
+/* Specific Heat (Cp) in kJ/(kg*K) (Assumed constant liquid water) */
+/* Enthalpy (h) in kJ/kg */
+
+/** Inlet Stream 1 (Cold Water) **/
+m_dot1 = 0.5     /* kg/s */
+T1_C = 20        /* C */
+P_kPa = 200      /* kPa */
+
+/** Inlet Stream 2 (Hot Water) **/
+m_dot2 = 0.2     /* kg/s */
+T2_C = 80        /* C */
+
+/** Outlet Stream 3 (Mixture) **/
+
+/** Constants and Properties **/
+Cp_w = 4.18      /* Approx. specific heat of liquid water (kJ/kg*K) */
+
+/** Conversions to Kelvin (if needed for more complex enthalpy models) **/
+/* Not strictly needed for h = Cp*T_C relative to 0 C */
+T1_K = T1_C + 273.15
+T2_K = T2_C + 273.15
+
+/** Mass Balance **/
+m_dot3 = m_dot1 + m_dot2
+
+/** Energy Balance (Adiabatic Mixing Chamber, Steady State) **/
+/* Sum(m_dot_in * h_in) = Sum(m_dot_out * h_out) */
+/* m_dot1 * h1 + m_dot2 * h2 = m_dot3 * h3 */
+
+/* Using simplified enthalpy relative to 0 C: h = Cp * T_C */
+h1 = Cp_w * T1_C
+h2 = Cp_w * T2_C
+h3 = Cp_w * T3_C
+
+/* Substitute enthalpy definitions into energy balance */
+m_dot1 * (Cp_w * T1_C) + m_dot2 * (Cp_w * T2_C) = m_dot3 * (Cp_w * T3_C)
+/* Since Cp_w is constant, it cancels out: */
+/* m_dot1 * T1_C + m_dot2 * T2_C = m_dot3 * T3_C */
+/* The solver will handle the full enthalpy balance as written, however */
+m_dot1 * h1 + m_dot2 * h2 = m_dot3 * h3
+
+/** Convert Outlet Temperature back to Kelvin (Optional) **/
+T3_K = T3_C + 273.15
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses */
+/* T3_C should be between T1_C and T2_C */
+T3_C = 40      /* C */
+m_dot3 = 0.7   /* kg/s */
+h1 = 80      /* kJ/kg */
+h2 = 330     /* kJ/kg */
+h3 = 160     /* kJ/kg */
+T1_K = 293
+T2_K = 353
+T3_K = 313
+@$@%@EndOfInitialVariableValueData@$@%@

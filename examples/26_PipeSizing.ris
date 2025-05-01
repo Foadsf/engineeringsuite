@@ -1,0 +1,54 @@
+/* Example 26: Pipe Diameter Sizing */
+/* Finds the required pipe diameter D for a given flow rate, */
+/* pressure drop, length, roughness, and fluid properties. */
+/* CORRECTED: Substituting f^0.5 directly into Colebrook */
+/*            Eliminating f_sqrt variable entirely */
+
+/* UNITS: Ensure consistency! Example uses SI: */
+/* Diameter (D) in m */
+/* Length (L) in m */
+/* Flow Rate (Q_flow) in m^3/s */
+/* Pressure Drop (DeltaP) in Pa */
+/* Roughness (epsilon) in m */
+/* Density (rho) in kg/m^3 */
+/* Viscosity (mu) in Pa*s (or kg/(m*s)) */
+/* Velocity (Vel) in m/s */
+/* Reynolds Number (Re) dimensionless */
+/* Friction Factor (f) dimensionless */
+
+/** Inputs and Fluid Properties **/
+Q_flow = 0.02      /* Target flow rate (m^3/s) */
+DeltaP = 50000     /* Allowable pressure drop (Pa) */
+L = 100            /* Pipe length (m) */
+epsilon = 0.000045 /* Pipe absolute roughness (m, for commercial steel) */
+
+rho = 998          /* Fluid density (kg/m^3, approx water at 20C) */
+mu = 0.001         /* Fluid dynamic viscosity (Pa*s, approx water at 20C) */
+
+/** Calculated Parameters **/
+Area = (pi * D^2) / 4   /* Pipe cross-sectional area (m^2) */
+Vel = Q_flow / Area      /* Average fluid velocity (m/s) */
+Re = (rho * Vel * D) / mu /* Reynolds Number */
+eps_D = epsilon / D      /* Relative roughness */
+
+/** Darcy-Weisbach Equation **/
+/* DeltaP = f * (L/D) * (rho * Vel^2 / 2) */
+DeltaP = f * (L/D) * (rho * (Vel^2) / 2)
+
+/** Colebrook Equation (Implicit friction factor f) **/
+/* Substitute f^0.5 directly for f_sqrt */
+/* 1 / f_sqrt = -2.0 * Log[ (eps_D / 3.7) + (2.51 / (Re * f_sqrt)) ] */
+1 / (f ^ 0.5) = -2.0 * Log[ (eps_D / 3.7) + (2.51 / (Re * (f ^ 0.5))) ]
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses */
+/* Diameter is the main unknown we are solving for */
+D = 0.1           /* m (initial guess, 10 cm) */
+/* Guesses for dependent variables based on D guess */
+Area = 0.00785    /* m^2 */
+Vel = 2.55        /* m/s */
+Re = 254000       /* Dimensionless */
+eps_D = 0.00045   /* Dimensionless */
+f = 0.018         /* Dimensionless (guess from Moody chart) */
+/* f_sqrt is no longer an explicit variable */
+@$@%@EndOfInitialVariableValueData@$@%@

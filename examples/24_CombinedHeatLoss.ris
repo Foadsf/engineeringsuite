@@ -1,0 +1,50 @@
+/* Example 24: Combined Convection and Radiation Heat Loss */
+/* Calculates surface temperature (Ts) and total heat loss (Q_total) */
+/* from a surface to large surroundings. */
+
+/* UNITS: Ensure consistency! Example assumes: */
+/* Temperature (T) in K */
+/* Heat Transfer Coefficient (h_conv) in W/(m^2*K) */
+/* Area (A) in m^2 */
+/* Emissivity (eps) dimensionless */
+/* Stefan-Boltzmann Constant (sigma) in W/(m^2*K^4) */
+/* Heat Transfer Rate (Q) in W */
+
+/** Given Conditions & Properties **/
+T_surr = 293.0    /* Temperature of large surroundings (K, ~20 C) */
+T_inf = 293.0     /* Temperature of surrounding fluid (K, assume same as T_surr) */
+A_s = 0.5       /* Surface area (m^2) */
+eps_s = 0.85    /* Surface emissivity */
+Q_gen = 500.0   /* Internal heat generation rate (W) */
+
+/* Stefan-Boltzmann Constant - USE WORKAROUND for E-notation */
+sigma = 5.67 * (10 ^ (-8)) /* W/(m^2*K^4) */
+
+/** Heat Transfer Coefficients (Simplified) **/
+/* Natural convection coefficient often depends on (Ts - T_inf). */
+/* Using a simplified correlation: h_conv = C * (Ts - T_inf)^n */
+/* For this example, let's use a plausible constant value for simplicity. */
+/* A more complex model would make h_conv an equation itself. */
+h_conv = 5.0      /* Assumed constant convection coefficient (W/m^2*K) */
+
+/** Heat Balance Equation (Steady State) **/
+/* Heat generated internally must equal heat lost by convection and radiation */
+/* Q_gen = Q_conv + Q_rad */
+
+Q_conv = h_conv * A_s * (Ts - T_inf)
+Q_rad = eps_s * sigma * A_s * (Ts^4 - T_surr^4)
+
+Q_gen = Q_conv + Q_rad
+
+/** Total Heat Loss (equals generation at steady state) **/
+Q_total = Q_gen
+
+@$@%@EndOfEquationData@$@%@
+/* Initial Guesses */
+/* Ts must be higher than T_inf/T_surr because of Q_gen */
+Ts = 350.0     /* K (Guess ~77 C) */
+/* Guess heat components based on Ts guess */
+Q_conv = 150   /* W */
+Q_rad = 350    /* W */
+Q_total = 500  /* W */
+@$@%@EndOfInitialVariableValueData@$@%@

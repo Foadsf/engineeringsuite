@@ -82,4 +82,24 @@ This document tracks key findings, workarounds, and best practices discovered du
 *   **Example:** Seen in `22_SimpleOptimization.ris`. The solver correctly finds `x` where `dydx=0` (residual is 0), but the residual check for the line `dydx = exp[-x^2] * (1 - 2*(x^2))` fails.
 *   **Recommendation:** If the primary condition (e.g., `dydx = 0`) shows a zero residual, and the variable values seem correct, the `RuntimeException` on the defining expression's residual check can often be considered an artifact and potentially ignored for simple cases. For complex models, it might warrant further investigation or equation reformulation.
 
+## 9. Function Syntax vs. Variable Recognition
+
+*   **Observation:** The parser (`CheckString.GramCheck` and the subsequent variable identification logic) does not consistently recognize built-in function names when used with standard function call syntax (e.g., `sqrt[...]`, `abs[...]`). It incorrectly identifies the function name itself as a variable.
+*   **Impact:** This leads to an incorrect count of unique variables compared to the number of equations. This dimensional mismatch causes the numerical solver (e.g., Levenberg-Marquardt) to fail with an `ArrayIndexOutOfBoundsException` during setup.
+*   **Example:** In `26_PipeSizing.ris`, using `sqrt[f]` or `abs[f^0.5]` caused `sqrt` or `abs` to be treated as variables, leading to 14 variables vs 13 equations and a solver crash.
+*   **Workaround:** Avoid using function call syntax for basic mathematical operations if it causes parsing issues. Use standard operators instead.
+    *   **Replace:** `f_sqrt = sqrt[f]` or `f_sqrt = abs[f^0.5]`
+    *   **With:** `f_sqrt = f ^ 0.5` (Uses the power operator for square root, which implies the positive root).
+*   **Status:** Using `f^0.5` in Example 26 correctly resolved the parser error and the variable count mismatch, allowing the solver to run.
+
+## 10. Solver Convergence vs. Solution Accuracy
+
+*   **Observation:** The numerical solver can report successful convergence (e.g., exit code 0, zero residuals calculated for simple assignments) even when the final set of variable values does not accurately satisfy all the coupled non-linear equations in the system upon independent verification.
+*   **Cause:** This can occur in complex non-linear systems like the coupled Darcy-Weisbach and Colebrook equations. The solver might converge to a point where the iterative changes fall below the specified tolerances (`steptl`, `gradtl`), but this point may not be the true mathematical solution. This could be a local minimum in the residual sum-of-squares that isn't zero, a point near a steep gradient, or related to the solver's specific algorithm and internal precision limits. The final residual check performed by the framework might also have precision issues for complex equations, potentially reporting zero incorrectly or failing with a `RuntimeException` even if the solver *thinks* it converged.
+*   **Example:** In `26_PipeSizing.ris`, after fixing the parser issues, the solver ran successfully and reported zero residuals. However, manually plugging the resulting values for `f`, `D`, `Vel`, `Re`, `eps_D` back into the Darcy-Weisbach and Colebrook equations showed significant imbalance, indicating the found solution point was not correct, despite the successful exit status. The calculated `f_sqrt` was also negative, which is physically impossible in this context.
+*   **Recommendation:** **Always critically evaluate results** from complex, coupled non-linear systems solved via the CLI. Do not solely rely on the "Execution finished successfully" message or the reported residuals (especially if they seem *too* perfect like all zeros in a complex iterative solution). Perform sanity checks:
+    *   Do the values make physical sense (e.g., positive friction factor, temperatures within expected ranges)?
+    *   Manually (or programmatically if possible) re-substitute key results back into the most complex original equations to verify they balance reasonably well.
+    *   If results seem suspect, try different, physically plausible initial guesses in the `.ris` file and re-run. Convergence to the same incorrect point might indicate a limitation of the solver/algorithm for that specific problem formulation.
+
 *(This file should be updated as new significant findings or workarounds are discovered.)*
